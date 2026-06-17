@@ -2174,6 +2174,148 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
       );
     };
 
+    // ─── Connect Database Section ─────────────────────────────────────────────
+    const ConnectDatabaseSection = () => {
+      const [dbUrl, setDbUrl] = useState('');
+      const [dbToken, setDbToken] = useState('');
+      const [isConnected, setIsConnected] = useState(false);
+      const [isLoading, setIsLoading] = useState(false);
+      const [statusMsg, setStatusMsg] = useState('');
+      const [statusType, setStatusType] = useState(''); // 'success' | 'error'
+
+      // Restore session from localStorage on mount
+      useEffect(() => {
+        try {
+          const raw = localStorage.getItem('db_session');
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed && parsed.url && parsed.token) {
+              setDbUrl(parsed.url);
+              setDbToken(parsed.token);
+              setIsConnected(true);
+            }
+          }
+        } catch (_) {
+          localStorage.removeItem('db_session');
+        }
+      }, []);
+
+      const handleConnect = async () => {
+        const trimmedUrl = dbUrl.trim();
+        const trimmedToken = dbToken.trim();
+        if (!trimmedUrl || !trimmedToken) {
+          setStatusMsg('Please enter both the Database URL and Auth Token.');
+          setStatusType('error');
+          return;
+        }
+        setIsLoading(true);
+        setStatusMsg('');
+        try {
+          const res = await fetch('/api/connect', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: trimmedUrl, token: trimmedToken }),
+          });
+          const data = await res.json();
+          if (data.ok) {
+            localStorage.setItem('db_session', JSON.stringify({ url: trimmedUrl, token: trimmedToken }));
+            setIsConnected(true);
+            setStatusMsg('Database connected successfully!');
+            setStatusType('success');
+            toast.success('🔗 Database connected!');
+          } else {
+            setStatusMsg(data.error || 'Connection failed. Please check your credentials.');
+            setStatusType('error');
+          }
+        } catch (err) {
+          setStatusMsg('Network error — could not reach the server. Please try again.');
+          setStatusType('error');
+        } finally {
+          setIsLoading(false);
+        }
+      };
+
+      const handleDisconnect = () => {
+        localStorage.removeItem('db_session');
+        setIsConnected(false);
+        setDbUrl('');
+        setDbToken('');
+        setStatusMsg('');
+        setStatusType('');
+        toast.success('Database disconnected.');
+      };
+
+      return (
+        <div className="pt-6 border-t border-slate-100">
+          <h3 className="font-semibold text-slate-800 mb-1 flex items-center gap-2">
+            <Key className="w-4 h-4 text-indigo-600" /> 🔗 Connect Database
+          </h3>
+          <p className="text-xs text-slate-400 mb-4">Connect a Turso (libSQL) database to sync your POS data.</p>
+
+          {isConnected ? (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 space-y-3">
+              <div className="flex items-center gap-2 text-emerald-700 font-semibold text-sm">
+                <CheckCircle className="w-5 h-5 flex-shrink-0" />
+                Database Connected
+              </div>
+              <p className="text-xs text-emerald-600 font-mono break-all">{dbUrl}</p>
+              <button
+                onClick={handleDisconnect}
+                className="btn-primary bg-red-500 hover:bg-red-600 py-2 px-4 text-sm"
+                style={{ boxShadow: '0 4px 10px -4px rgba(239,68,68,.5)' }}
+              >
+                <X className="w-4 h-4" /> Disconnect Database
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-semibold text-slate-500 block mb-1">Turso Database URL</label>
+                <input
+                  className="input-field"
+                  placeholder="libsql://your-db-name.turso.io"
+                  value={dbUrl}
+                  onChange={e => setDbUrl(e.target.value)}
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-500 block mb-1">Auth Token</label>
+                <input
+                  className="input-field"
+                  type="password"
+                  placeholder="eyJhbGciOiJFZERTQSJ9..."
+                  value={dbToken}
+                  onChange={e => setDbToken(e.target.value)}
+                  autoComplete="new-password"
+                />
+              </div>
+              <button
+                onClick={handleConnect}
+                disabled={isLoading}
+                className="btn-primary py-2.5 px-5 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {isLoading
+                  ? <Loader2 className="w-4 h-4 animate-spin" />
+                  : <Key className="w-4 h-4" />}
+                {isLoading ? 'Testing Connection…' : 'Test & Connect'}
+              </button>
+              {statusMsg && (
+                <div className={`text-sm p-3 rounded-lg flex items-start gap-2 ${statusType === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                  {statusType === 'success'
+                    ? <CheckCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                    : <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />}
+                  {statusMsg}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      );
+    };
+    // ─────────────────────────────────────────────────────────────────────────
+
     const SettingsPanel = ({ settings, setSettings, updateProducts, updateSalesHistory, updateExpenses, updateDebts, updatePaidDebts, updateStockHistory, handleDownloadPdf }) => {
       const DEFAULT_PERMISSIONS = { editProducts: false, addStock: false, viewStockHistory: false, viewDebts: false, viewExpenses: false, viewCustomers: false, canDiscount: false, editPriceAndCost: false, viewSuppliers: false, bulkPriceUpdate: false };
       const PERMISSION_LABELS = { editProducts: "Edit/Delete Products", addStock: "Add Stock", viewStockHistory: "View Stock History", viewDebts: "Manage Debts", viewExpenses: "Manage Expenses", viewCustomers: "Manage Customers", canDiscount: "Give Discounts", editPriceAndCost: "Edit Price & Cost", viewSuppliers: "Manage Suppliers", bulkPriceUpdate: "Bulk Price Update" };
@@ -2329,6 +2471,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
             <button onClick={() => setShowFullImportModal(true)} className="btn-primary bg-blue-600 hover:bg-blue-700 px-5 py-3 font-medium flex-1"><Upload className="w-4 h-4" /> Import Full Data (CSV)</button>
           </div>
         </div>
+        <ConnectDatabaseSection />
       </div>
         {showFullImportModal && (
           <FullDataImportModal
