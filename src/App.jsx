@@ -132,6 +132,39 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
       }
     };
 
+    // --- TURSO SYNC UTILITIES ---
+    // Best-effort, fully silent — never throws or blocks POS operations.
+    const tursoSync = async (key, data) => {
+      try {
+        const raw = localStorage.getItem('db_session');
+        if (!raw) return; // Not connected — skip silently
+        const { url, token } = JSON.parse(raw);
+        if (!url || !token) return;
+        await fetch('/api/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url, token, key, value: JSON.stringify(data) }),
+        });
+      } catch (_) {
+        // Swallow all errors — Turso sync must never crash the POS
+      }
+    };
+
+    // Sync all collections at once (used on initial connect)
+    const tursoSyncAll = async () => {
+      try {
+        const keys = ['products', 'salesHistory', 'customers', 'debts', 'paidDebts', 'expenses', 'stockHistory', 'settings'];
+        for (const k of keys) {
+          const val = await loadDataFromDB(k);
+          if (val !== undefined && val !== null) {
+            await tursoSync(k, val);
+          }
+        }
+      } catch (_) {
+        // Silent
+      }
+    };
+
     // --- CONSTANTS ---
     const PRESET_SOUNDS = [
       { id: 'beep', name: 'Classic Beep', url: 'https://assets.mixkit.co/active_storage/sfx/2574/2574-preview.mp3' },
@@ -2220,9 +2253,13 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
           if (data.ok) {
             localStorage.setItem('db_session', JSON.stringify({ url: trimmedUrl, token: trimmedToken }));
             setIsConnected(true);
-            setStatusMsg('Database connected successfully!');
+            setStatusMsg('Database connected! Uploading existing data to Turso…');
             setStatusType('success');
             toast.success('🔗 Database connected!');
+            // Push all existing local data to Turso in background
+            tursoSyncAll().then(() => {
+              setStatusMsg('Database connected. All data synced to Turso ✓');
+            }).catch(() => {});
           } else {
             setStatusMsg(data.error || 'Connection failed. Please check your credentials.');
             setStatusType('error');
@@ -3388,7 +3425,7 @@ id,name,qty,barcode,date,cashierName
       const markNotifRead = (id) => setReadNotifs(prev => ({ ...prev, [id]: Date.now() }));
       const markAllNotifRead = () => { const m = { ...readNotifs }; const now = Date.now(); notifications.forEach(n => { m[n.id] = now; }); setReadNotifs(m); };
       
-      const updateProducts = (newData) => { setProducts(newData); saveDataToDB('products', newData); }; const updateCustomers = (newData) => { setCustomers(newData); saveDataToDB('customers', newData); }; const updateDebts = (newData) => { setDebts(newData); saveDataToDB('debts', newData); }; const updatePaidDebts = (newData) => { setPaidDebts(newData); saveDataToDB('paidDebts', newData); }; const updateExpenses = (newData) => { setExpenses(newData); saveDataToDB('expenses', newData); }; const updateSalesHistory = (newData) => { setSalesHistory(newData); saveDataToDB('salesHistory', newData); const snaps = computeMonthlyAggregates(newData); if (snaps.length > 0) { saveMonthlySnapshots(snaps).then(() => setMonthlySnapshots(snaps)); } }; const updateStockHistory = (newData) => { setStockHistory(newData); saveDataToDB('stockHistory', newData); };
+      const updateProducts = (newData) => { setProducts(newData); saveDataToDB('products', newData); tursoSync('products', newData); }; const updateCustomers = (newData) => { setCustomers(newData); saveDataToDB('customers', newData); tursoSync('customers', newData); }; const updateDebts = (newData) => { setDebts(newData); saveDataToDB('debts', newData); tursoSync('debts', newData); }; const updatePaidDebts = (newData) => { setPaidDebts(newData); saveDataToDB('paidDebts', newData); tursoSync('paidDebts', newData); }; const updateExpenses = (newData) => { setExpenses(newData); saveDataToDB('expenses', newData); tursoSync('expenses', newData); }; const updateSalesHistory = (newData) => { setSalesHistory(newData); saveDataToDB('salesHistory', newData); tursoSync('salesHistory', newData); const snaps = computeMonthlyAggregates(newData); if (snaps.length > 0) { saveMonthlySnapshots(snaps).then(() => setMonthlySnapshots(snaps)); } }; const updateStockHistory = (newData) => { setStockHistory(newData); saveDataToDB('stockHistory', newData); tursoSync('stockHistory', newData); };
 
       useEffect(() => { const loadAllData = async () => { const loadedProducts = await loadDataFromDB('products') || []; const loadedCustomers = await loadDataFromDB('customers') || []; const loadedDebts = await loadDataFromDB('debts') || []; const loadedPaidDebts = await loadDataFromDB('paidDebts') || []; const loadedExpenses = await loadDataFromDB('expenses') || []; const loadedSales = await loadDataFromDB('salesHistory') || []; const loadedStock = await loadDataFromDB('stockHistory') || []; const loadedSnaps = await loadMonthlySnapshots() || []; setProducts(loadedProducts); setCustomers(loadedCustomers); setDebts(loadedDebts); setPaidDebts(loadedPaidDebts); setExpenses(loadedExpenses); setSalesHistory(loadedSales); setStockHistory(loadedStock); setMonthlySnapshots(loadedSnaps); }; loadAllData(); }, []);
       useEffect(() => {
