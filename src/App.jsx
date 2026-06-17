@@ -1085,6 +1085,9 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
       const [viewStock, setViewStock] = useState(false); const [stockSearch, setStockSearch] = useState(''); const [stockDateRange, setStockDateRange] = useState({ start: '', end: '' });
       const [currentPage, setCurrentPage] = useState(1);
       const [prodTab, setProdTab] = useState('manage');
+      const [selectedIds, setSelectedIds] = useState(new Set());
+      const barcodeBuffer = useRef({ text: '', lastTime: 0 });
+      const lastScanTime = useRef(0);
       
       useEffect(() => { setCurrentPage(1); }, [search, cat, activeTab]);
 
@@ -1195,12 +1198,8 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
         setShowOrderModal(true);
       };
 
-      const [selectedIds, setSelectedIds] = useState(new Set());
       const handleSelect = (id) => { const newSet = new Set(selectedIds); if (newSet.has(id)) { newSet.delete(id); } else { newSet.add(id); } setSelectedIds(newSet); };
       const handleSelectAll = (e) => { if (e.target.checked) { setSelectedIds(new Set(filtered.map(p => p.id))); } else { setSelectedIds(new Set()); } };
-
-      const barcodeBuffer = useRef({ text: '', lastTime: 0 });
-      const lastScanTime = useRef(0);
 
       useEffect(() => {
         const handleGlobalScan = (e) => {
