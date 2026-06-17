@@ -3446,7 +3446,13 @@ id,name,qty,barcode,date,cashierName
     };
 
     const Dashboard = ({ currentUser, onLogout, settings, onSettingsChange, initialTab = 'products', superAdminSettings }) => {
-      const [tab, setTab] = useState(initialTab); const [products, setProducts] = useState([]); const [customers, setCustomers] = useState([]); const [debts, setDebts] = useState([]); const [paidDebts, setPaidDebts] = useState([]); const [expenses, setExpenses] = useState([]); const [salesHistory, setSalesHistory] = useState([]); const [stockHistory, setStockHistory] = useState([]); const [showCalc, setShowCalc] = useState(false); const [showMenu, setShowMenu] = useState(false); const [showNotif, setShowNotif] = useState(false); const [readNotifs, setReadNotifs] = useState(() => { try { return JSON.parse(localStorage.getItem('sb_read_notifs') || '{}'); } catch { return {}; } }); const [monthlySnapshots, setMonthlySnapshots] = useState([]); const [cart, setCart] = useState([]);
+      const [tab, setTabRaw] = useState(() => {
+        // Restore the last active tab from localStorage; fall back to initialTab prop
+        try { return localStorage.getItem('sb_active_tab') || initialTab; } catch { return initialTab; }
+      });
+      // Wrap setTab so every navigation persists the chosen tab
+      const setTab = (newTab) => { setTabRaw(newTab); try { localStorage.setItem('sb_active_tab', newTab); } catch {} };
+      const [products, setProducts] = useState([]); const [customers, setCustomers] = useState([]); const [debts, setDebts] = useState([]); const [paidDebts, setPaidDebts] = useState([]); const [expenses, setExpenses] = useState([]); const [salesHistory, setSalesHistory] = useState([]); const [stockHistory, setStockHistory] = useState([]); const [showCalc, setShowCalc] = useState(false); const [showMenu, setShowMenu] = useState(false); const [showNotif, setShowNotif] = useState(false); const [readNotifs, setReadNotifs] = useState(() => { try { return JSON.parse(localStorage.getItem('sb_read_notifs') || '{}'); } catch { return {}; } }); const [monthlySnapshots, setMonthlySnapshots] = useState([]); const [cart, setCart] = useState([]);
       const [receiptData, setReceiptData] = useState(null);
       const [showPrintModal, setShowPrintModal] = useState(false);
 
