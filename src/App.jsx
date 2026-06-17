@@ -3837,6 +3837,20 @@ id,name,qty,barcode,date,cashierName
       const [isLoading, setIsLoading] = useState(true);
       const [initialTab, setInitialTab] = useState('products');
 
+      // Auto-pull from Turso on initial load (once per tab session)
+      useEffect(() => {
+        const autoPull = async () => {
+          if (!sessionStorage.getItem('has_pulled_this_session')) {
+            sessionStorage.setItem('has_pulled_this_session', 'true');
+            const pulled = await tursoPullAll();
+            if (pulled) {
+              window.location.reload(); // Reload to cleanly populate all state
+            }
+          }
+        };
+        autoPull();
+      }, []);
+
       useEffect(() => {
         Promise.all([
           loadDataFromDB('settings'),
