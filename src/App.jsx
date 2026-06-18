@@ -2591,6 +2591,20 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
             updateStockHistory={updateStockHistory}
           />
         )}
+        {selectedCashierQR && (
+          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 relative">
+              <button onClick={() => setSelectedCashierQR(null)} className="absolute top-4 right-4 p-2 text-slate-400 hover:bg-slate-100 rounded-full"><X className="w-5 h-5" /></button>
+              <h3 className="text-xl font-bold text-center text-slate-800 mb-2">Cashier Login QR</h3>
+              <p className="text-sm text-center text-slate-500 mb-6">Scan this code from the cashier's device to connect. They will need their PIN to decrypt the secure connection.</p>
+              <div className="bg-slate-50 p-4 rounded-xl flex justify-center border border-slate-100 mb-6">
+                <QRCodeImage url={selectedCashierQR.qrString} />
+              </div>
+              <div className="text-center font-semibold text-slate-800 mb-2">{selectedCashierQR.name}</div>
+              <button onClick={() => setSelectedCashierQR(null)} className="w-full py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700">Done</button>
+            </div>
+          </div>
+        )}
       </div>);
     };
 
