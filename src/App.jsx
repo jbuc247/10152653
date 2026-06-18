@@ -251,14 +251,16 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
       const canvasRef = useRef(null);
       useEffect(() => {
         if (canvasRef.current && url) {
-          QRCode.toCanvas(canvasRef.current, url, { width: size, margin: 2, errorCorrectionLevel: 'M' }, (err) => {
+          // Use low error correction 'L' so the dense AES string doesn't create a too-dense QR code.
+          // Render at high scale natively, then restrict display size via CSS for crispness.
+          QRCode.toCanvas(canvasRef.current, url, { scale: 6, margin: 2, errorCorrectionLevel: 'L' }, (err) => {
             if (err) console.error('QR generation error', err);
           });
         }
       }, [url, size]);
       return (
         <div style={{ textAlign: 'center', marginTop: '10px', marginBottom: '10px' }}>
-          <canvas ref={canvasRef} style={{ margin: '0 auto', display: 'block' }} />
+          <canvas ref={canvasRef} style={{ margin: '0 auto', display: 'block', width: size, height: size }} />
           <div style={{ fontSize: '8pt', marginTop: '4px' }}>Scan for more info</div>
         </div>
       );
@@ -283,9 +285,9 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
           aspectRatio: 1.0,
         };
 
-        // Use environment (rear) camera directly via facingMode constraint
+        // Use environment (rear) camera directly and request high resolution to read dense QR codes easily
         html5QrCode.start(
-          { facingMode: 'environment' },
+          { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } },
           config,
           (decodedText) => {
             // Stop scanner after successful scan
@@ -303,7 +305,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
               return;
             }
             html5QrCode.start(
-              cameras[0].id,
+              { deviceId: { exact: cameras[0].id }, width: { ideal: 1920 }, height: { ideal: 1080 } },
               config,
               (decodedText) => {
                 html5QrCode.stop().catch(() => {});
