@@ -264,6 +264,72 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
       );
     };
 
+    const QRScanView = ({ onScanSuccess, onClose }) => {
+      const scannerRef = useRef(null);
+      const divId = 'qr-reader-view';
+
+      useEffect(() => {
+        const html5QrCode = new Html5Qrcode(divId);
+        scannerRef.current = html5QrCode;
+
+        Html5Qrcode.getCameras().then(cameras => {
+          if (!cameras || cameras.length === 0) {
+            toast.error('No camera found on this device.');
+            onClose();
+            return;
+          }
+          const camId = cameras[cameras.length - 1].id; // prefer rear camera
+          html5QrCode.start(
+            camId,
+            { fps: 10, qrbox: { width: 250, height: 250 } },
+            (decodedText) => {
+              html5QrCode.stop().catch(() => {});
+              onScanSuccess(decodedText);
+            },
+            () => {} // ignore per-frame errors
+          ).catch(err => {
+            console.error('QR start error', err);
+            toast.error('Could not start camera. Please allow camera access.');
+            onClose();
+          });
+        }).catch(err => {
+          console.error('getCameras error', err);
+          toast.error('Camera access denied. Please allow camera permissions.');
+          onClose();
+        });
+
+        return () => {
+          if (scannerRef.current) {
+            scannerRef.current.stop().catch(() => {}).finally(() => {
+              scannerRef.current.clear();
+            });
+          }
+        };
+      }, []);
+
+      return (
+        <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+            <div className="bg-gradient-to-r from-emerald-600 to-teal-600 p-5 text-center">
+              <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-3">
+                <QrCode className="w-6 h-6 text-white" />
+              </div>
+              <h2 className="text-xl font-bold text-white">Scan QR Code</h2>
+              <p className="text-emerald-100 text-sm mt-1">Point camera at cashier QR code</p>
+            </div>
+            <div className="p-4">
+              <div id={divId} className="rounded-xl overflow-hidden w-full" style={{ minHeight: '250px' }}></div>
+            </div>
+            <div className="px-5 pb-5">
+              <button onClick={onClose} className="w-full py-3 border border-slate-200 text-slate-600 font-semibold rounded-xl hover:bg-slate-50 transition-colors">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
     const PrintableReceipt = ({ data }) => {
       if (!data) return null;
       const { cart, totals, payment, settings, cashierName, customer } = data;
@@ -4272,18 +4338,7 @@ id,name,qty,barcode,date,cashierName
 <button onClick={logout} className="mt-6 text-sm text-slate-400 hover:text-red-500 font-medium block mx-auto">Back to Home</button>{loginMode === 'pin' && <button onClick={() => { setPin(''); setView('recover'); }} className="mt-4 text-xs text-slate-500 hover:text-slate-700 block mx-auto">Forgot PIN?</button>}</div></div>)}
           {view === 'recover' && (<div className="min-h-screen bg-slate-50 flex items-center justify-center p-4"><div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm text-center"><div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4"><Key className="w-8 h-8 text-amber-600" /></div><h2 className="text-xl font-bold mb-2 text-slate-800">Recover Access</h2><p className="text-sm text-slate-500 mb-6">Enter the master recovery PIN.</p><div className="flex justify-center gap-3 mb-8">{[0, 1, 2, 3, 4, 5].map(i => <div key={i} className={`w-3 h-3 rounded-full transition-all ${pin.length > i ? 'bg-amber-600 scale-125' : 'bg-slate-200'}`}></div>)}</div><div className="grid grid-cols-3 gap-4">{[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => <button key={n} onClick={() => checkRecoveryPin(pin + n)} className="p-4 bg-slate-50 rounded-xl font-bold text-xl text-slate-700 hover:bg-amber-50 hover:text-amber-700 hover:shadow-md transition-all border border-slate-100">{n}</button>)}<div /><button onClick={() => checkRecoveryPin(pin + '0')} className="p-4 bg-slate-50 rounded-xl font-bold text-xl text-slate-700 hover:bg-amber-50 hover:text-amber-700 hover:shadow-md transition-all border border-slate-100">0</button><button onClick={() => setPin(pin.slice(0, -1))} className="p-4 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"><Delete className="w-6 h-6" /></button></div><button onClick={() => { setPin(''); setView('pin'); }} className="mt-8 text-sm text-slate-400 hover:text-slate-700 font-medium">Back to Login</button></div></div>)}
           
-          {view === 'qr_scan' && (
-            <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-              <QRScannerComponent 
-                onScanSuccess={(text) => {
-                  setScannedQrText(text);
-                  setPin('');
-                  setView('qr_pin');
-                }} 
-                onClose={() => setView('landing')} 
-              />
-            </div>
-          )}
+          {view === 'qr_scan' && <QRScanView onScanSuccess={(text) => { setScannedQrText(text); setPin(''); setView('qr_pin'); }} onClose={() => setView('landing')} />}
 
           {view === 'qr_pin' && (
             <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
