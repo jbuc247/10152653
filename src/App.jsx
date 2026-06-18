@@ -19,6 +19,43 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
     
     window.LOGO_DATA = '/logo.png';
 
+    // --- CLOUD REGISTRY UTILS ---
+    const CLOUD_KV_API = "https://keyvalue.immanuel.co/api/KeyVal";
+    const APP_NAMESPACE = "SoftlyPOS_Cloud_Registry";
+
+    const uploadToCloudRegistry = async (storeHandle, masterPassword, payloadObj) => {
+      try {
+        const payloadStr = JSON.stringify(payloadObj);
+        const ciphertext = CryptoJS.AES.encrypt(payloadStr, masterPassword).toString();
+        const encodedCiphertext = encodeURIComponent(ciphertext);
+        const res = await fetch(`${CLOUD_KV_API}/UpdateValue/${APP_NAMESPACE}/${encodeURIComponent(storeHandle)}/${encodedCiphertext}`, {
+          method: 'POST'
+        });
+        if (!res.ok) throw new Error('Failed to upload to cloud registry');
+        return true;
+      } catch (err) {
+        console.error(err);
+        return false;
+      }
+    };
+
+    const downloadFromCloudRegistry = async (storeHandle, masterPassword) => {
+      try {
+        const res = await fetch(`${CLOUD_KV_API}/GetValue/${APP_NAMESPACE}/${encodeURIComponent(storeHandle)}`);
+        if (!res.ok) throw new Error('Failed to fetch from cloud registry');
+        const encodedCiphertext = await res.text();
+        if (encodedCiphertext === 'null' || !encodedCiphertext) throw new Error('Store handle not found');
+        const cleanCiphertext = encodedCiphertext.replace(/^"|"$/g, '');
+        const decodedCiphertext = decodeURIComponent(cleanCiphertext);
+        const bytes = CryptoJS.AES.decrypt(decodedCiphertext, masterPassword);
+        const decryptedStr = bytes.toString(CryptoJS.enc.Utf8);
+        if (!decryptedStr) throw new Error('Invalid master password or corrupted data');
+        return JSON.parse(decryptedStr);
+      } catch (err) {
+        console.error(err);
+        throw err;
+      }
+    };
 
     // --- IndexedDB UTILS ---
     const DB_NAME = 'BirkuShopDB';
@@ -2524,6 +2561,47 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
         </div>
       );
     };
+    const CloudRecoverySection = () => {
+      const [handle, setHandle] = useState('');
+      const [pwd, setPwd] = useState('');
+      const [status, setStatus] = useState('');
+
+      const handleSave = async () => {
+        if (!handle || !pwd) return toast.error('Handle and Password are required');
+        const raw = localStorage.getItem('db_session');
+        if (!raw) return toast.error('No active Turso connection to back up');
+        setStatus('Saving to Cloud Registry...');
+        const creds = JSON.parse(raw);
+        const ok = await uploadToCloudRegistry(handle, pwd, creds);
+        if (ok) {
+          toast.success('Recovery key saved securely!');
+          setStatus('Saved! You can now recover this store on any device using this Handle and Password.');
+          setHandle(''); setPwd('');
+        } else {
+          toast.error('Failed to save to Cloud Registry');
+          setStatus('Failed to save.');
+        }
+      };
+
+      return (
+        <div className="bg-white rounded-2xl p-6 border border-slate-200 mt-6 shadow-sm">
+          <h3 className="font-bold text-lg mb-2 flex items-center gap-2"><Key className="w-5 h-5 text-indigo-600" /> Cloud Recovery Setup</h3>
+          <p className="text-sm text-slate-500 mb-4">Create a Store Handle and Master Password. If you lose your device, you can use these to instantly log back in without needing your database keys. Your keys are heavily encrypted and completely unreadable by anyone else.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+            <div>
+              <label className="text-xs font-semibold text-slate-500 block mb-1">Store Handle (e.g. JohnsMart)</label>
+              <input value={handle} onChange={e => setHandle(e.target.value)} className="input-field w-full font-mono text-sm" placeholder="@StoreHandle" />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-slate-500 block mb-1">Master Password</label>
+              <input type="password" value={pwd} onChange={e => setPwd(e.target.value)} className="input-field w-full text-sm" placeholder="••••••••" />
+            </div>
+          </div>
+          <button onClick={handleSave} className="btn-primary bg-indigo-600 hover:bg-indigo-700 w-full py-3"><Lock className="w-4 h-4" /> Save Recovery Key</button>
+          {status && <div className="mt-3 text-sm text-indigo-700 bg-indigo-50 p-3 rounded-lg border border-indigo-100">{status}</div>}
+        </div>
+      );
+    };
     // ─────────────────────────────────────────────────────────────────────────
 
     const SettingsPanel = ({ settings, setSettings, updateProducts, updateSalesHistory, updateExpenses, updateDebts, updatePaidDebts, updateStockHistory, handleDownloadPdf }) => {
@@ -2703,6 +2781,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
           </div>
         </div>
         <ConnectDatabaseSection />
+        <CloudRecoverySection />
       </div>
         {showFullImportModal && (
           <FullDataImportModal
@@ -4399,7 +4478,7 @@ id,name,qty,barcode,date,cashierName
               clearDataFromDB={clearDataFromDB}
             />
           )}
-          {view === 'landing' && (<div className="min-h-screen bg-white flex flex-col"><nav className="px-6 py-4 border-b flex justify-between items-center"><div className="flex items-center gap-2 font-bold text-xl text-slate-800"><img src={window.LOGO_DATA} alt="Softly Built" className="w-10 h-10 rounded-lg object-contain shadow-lg shadow-emerald-200" /> Softly Built</div><button onClick={() => setView('pin')} className="text-emerald-600 font-semibold hover:text-emerald-700">Login</button></nav><div className="flex-1 flex flex-col items-center justify-center text-center px-6 py-20 bg-gradient-to-b from-slate-50 to-white"><h1 className="text-5xl md:text-6xl font-extrabold text-slate-900 mb-6 tracking-tight">Manage your shop with <br className="hidden md:block" /><span className="text-emerald-600">precision and ease.</span></h1><p className="text-lg text-slate-500 max-w-2xl mb-10 leading-relaxed">Softly Built is the professional point-of-sale system designed for modern retailers. Track inventory, manage debts, and visualize profits, now with full offline support.</p><div className="flex flex-col md:flex-row gap-4"><button onClick={() => setView('pin')} className="group flex items-center justify-center gap-2 bg-emerald-600 text-white px-8 py-4 rounded-xl text-lg font-bold shadow-xl shadow-emerald-200 hover:bg-emerald-700 hover:shadow-2xl hover:-translate-y-1 transition-all">Launch System <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" /></button><button onClick={() => setView('qr_scan')} className="group flex items-center justify-center gap-2 bg-white text-emerald-600 border border-emerald-200 px-8 py-4 rounded-xl text-lg font-bold shadow-lg hover:bg-emerald-50 hover:shadow-xl hover:-translate-y-1 transition-all">Scan QR Login <QrCode className="w-5 h-5 group-hover:scale-110 transition-transform" /></button></div></div><footer className="py-8 text-center text-slate-400 text-sm border-t"><p>&copy; {new Date().getFullYear()} Softly Built.</p></footer></div>)}
+          {view === 'landing' && (<div className="min-h-screen bg-white flex flex-col"><nav className="px-6 py-4 border-b flex justify-between items-center"><div className="flex items-center gap-2 font-bold text-xl text-slate-800"><img src={window.LOGO_DATA} alt="Softly Built" className="w-10 h-10 rounded-lg object-contain shadow-lg shadow-emerald-200" /> Softly Built</div><button onClick={() => setView('pin')} className="text-emerald-600 font-semibold hover:text-emerald-700">Login</button></nav><div className="flex-1 flex flex-col items-center justify-center text-center px-6 py-20 bg-gradient-to-b from-slate-50 to-white"><h1 className="text-5xl md:text-6xl font-extrabold text-slate-900 mb-6 tracking-tight">Manage your shop with <br className="hidden md:block" /><span className="text-emerald-600">precision and ease.</span></h1><p className="text-lg text-slate-500 max-w-2xl mb-10 leading-relaxed">Softly Built is the professional point-of-sale system designed for modern retailers. Track inventory, manage debts, and visualize profits, now with full offline support.</p><div className="flex flex-col md:flex-row gap-4 justify-center"><button onClick={() => setView('pin')} className="group flex items-center justify-center gap-2 bg-emerald-600 text-white px-8 py-4 rounded-xl text-lg font-bold shadow-xl shadow-emerald-200 hover:bg-emerald-700 hover:shadow-2xl hover:-translate-y-1 transition-all">Launch System <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" /></button><button onClick={() => setView('qr_scan')} className="group flex items-center justify-center gap-2 bg-white text-emerald-600 border border-emerald-200 px-8 py-4 rounded-xl text-lg font-bold shadow-lg hover:bg-emerald-50 hover:shadow-xl hover:-translate-y-1 transition-all">Scan QR Login <QrCode className="w-5 h-5 group-hover:scale-110 transition-transform" /></button></div><button onClick={() => setView('cloud_recovery')} className="mt-8 text-emerald-600 font-bold hover:underline flex items-center justify-center gap-2 mx-auto"><Key className="w-4 h-4" /> Recover Existing Store</button></div><footer className="py-8 text-center text-slate-400 text-sm border-t"><p>&copy; {new Date().getFullYear()} Softly Built.</p></footer></div>)}
           {view === 'pin' && (<div className="min-h-screen bg-slate-50 flex items-center justify-center p-4"><div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm text-center"><div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4"><Lock className="w-8 h-8 text-emerald-600" /></div><h2 className="text-xl font-bold mb-2 text-slate-800">Enter Access {loginMode === 'pin' ? 'PIN' : 'Password'}</h2><p className="text-sm text-slate-500 mb-6">Login as Owner or Cashier</p>
 {loginMode === 'pin' ? (
   <>
@@ -4416,6 +4495,38 @@ id,name,qty,barcode,date,cashierName
 <button onClick={logout} className="mt-6 text-sm text-slate-400 hover:text-red-500 font-medium block mx-auto">Back to Home</button>{loginMode === 'pin' && <button onClick={() => { setPin(''); setView('recover'); }} className="mt-4 text-xs text-slate-500 hover:text-slate-700 block mx-auto">Forgot PIN?</button>}</div></div>)}
           {view === 'recover' && (<div className="min-h-screen bg-slate-50 flex items-center justify-center p-4"><div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm text-center"><div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4"><Key className="w-8 h-8 text-amber-600" /></div><h2 className="text-xl font-bold mb-2 text-slate-800">Recover Access</h2><p className="text-sm text-slate-500 mb-6">Enter the master recovery PIN.</p><div className="flex justify-center gap-3 mb-8">{[0, 1, 2, 3, 4, 5].map(i => <div key={i} className={`w-3 h-3 rounded-full transition-all ${pin.length > i ? 'bg-amber-600 scale-125' : 'bg-slate-200'}`}></div>)}</div><div className="grid grid-cols-3 gap-4">{[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => <button key={n} onClick={() => checkRecoveryPin(pin + n)} className="p-4 bg-slate-50 rounded-xl font-bold text-xl text-slate-700 hover:bg-amber-50 hover:text-amber-700 hover:shadow-md transition-all border border-slate-100">{n}</button>)}<div /><button onClick={() => checkRecoveryPin(pin + '0')} className="p-4 bg-slate-50 rounded-xl font-bold text-xl text-slate-700 hover:bg-amber-50 hover:text-amber-700 hover:shadow-md transition-all border border-slate-100">0</button><button onClick={() => setPin(pin.slice(0, -1))} className="p-4 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"><Delete className="w-6 h-6" /></button></div><button onClick={() => { setPin(''); setView('pin'); }} className="mt-8 text-sm text-slate-400 hover:text-slate-700 font-medium">Back to Login</button></div></div>)}
           
+          {view === 'cloud_recovery' && (
+            <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+              <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm text-center">
+                <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4"><Lock className="w-8 h-8 text-indigo-600" /></div>
+                <h2 className="text-xl font-bold mb-2 text-slate-800">Cloud Recovery</h2>
+                <p className="text-sm text-slate-500 mb-6">Enter your Store Handle and Master Password to reconnect.</p>
+                <form onSubmit={async (e) => { 
+                  e.preventDefault(); 
+                  const handle = e.target.handle.value; 
+                  const pwd = e.target.pwd.value; 
+                  if (!handle || !pwd) return toast.error('Both fields required');
+                  const toastId = toast.loading('Recovering store...');
+                  try {
+                    const creds = await downloadFromCloudRegistry(handle, pwd);
+                    localStorage.setItem('db_session', JSON.stringify(creds));
+                    toast.success('Recovery successful! Connecting...', { id: toastId });
+                    setTimeout(() => window.location.reload(), 1000);
+                  } catch (err) {
+                    toast.error(err.message || 'Recovery failed', { id: toastId });
+                  }
+                }} className="mb-4 text-left">
+                  <label className="text-xs font-semibold text-slate-500 block mb-1">Store Handle</label>
+                  <input name="handle" className="w-full p-3 border border-slate-200 rounded-xl mb-4 bg-slate-50 focus:bg-white focus:ring-2 ring-indigo-500 outline-none" placeholder="@JohnsMart" required autoFocus />
+                  <label className="text-xs font-semibold text-slate-500 block mb-1">Master Password</label>
+                  <input name="pwd" type="password" className="w-full p-3 border border-slate-200 rounded-xl mb-4 bg-slate-50 focus:bg-white focus:ring-2 ring-indigo-500 outline-none" placeholder="••••••••" required />
+                  <button type="submit" className="w-full mt-2 bg-indigo-600 text-white font-bold py-3 rounded-xl hover:bg-indigo-700 transition-colors">Recover Store</button>
+                </form>
+                <button onClick={() => setView('landing')} className="mt-4 text-sm text-slate-400 hover:text-slate-600 font-medium block mx-auto">Cancel</button>
+              </div>
+            </div>
+          )}
+
           {view === 'qr_scan' && <QRScanView onScanSuccess={(text) => { setScannedQrText(text); setPin(''); setView('qr_pin'); }} onClose={() => setView('landing')} />}
 
           {view === 'qr_pin' && (
