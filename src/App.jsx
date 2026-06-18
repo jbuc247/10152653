@@ -247,15 +247,15 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
     // --- HELPER COMPONENTS & UTILS ---
 
     // Locally-generated QR code (replaces api.qrserver.com — no internet required)
-    const QRCodeImage = ({ url }) => {
+    const QRCodeImage = ({ url, size = 100 }) => {
       const canvasRef = useRef(null);
       useEffect(() => {
         if (canvasRef.current && url) {
-          QRCode.toCanvas(canvasRef.current, url, { width: 100, margin: 1 }, (err) => {
+          QRCode.toCanvas(canvasRef.current, url, { width: size, margin: 2, errorCorrectionLevel: 'M' }, (err) => {
             if (err) console.error('QR generation error', err);
           });
         }
-      }, [url]);
+      }, [url, size]);
       return (
         <div style={{ textAlign: 'center', marginTop: '10px', marginBottom: '10px' }}>
           <canvas ref={canvasRef} style={{ margin: '0 auto', display: 'block' }} />
@@ -266,65 +266,89 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 
     const QRScanView = ({ onScanSuccess, onClose }) => {
       const scannerRef = useRef(null);
+      const startedRef = useRef(false);
       const divId = 'qr-reader-view';
 
       useEffect(() => {
+        if (startedRef.current) return;
+        startedRef.current = true;
+
         const html5QrCode = new Html5Qrcode(divId);
         scannerRef.current = html5QrCode;
 
-        Html5Qrcode.getCameras().then(cameras => {
-          if (!cameras || cameras.length === 0) {
-            toast.error('No camera found on this device.');
-            onClose();
-            return;
-          }
-          const camId = cameras[cameras.length - 1].id; // prefer rear camera
-          html5QrCode.start(
-            camId,
-            { fps: 10, qrbox: { width: 250, height: 250 } },
-            (decodedText) => {
-              html5QrCode.stop().catch(() => {});
-              onScanSuccess(decodedText);
-            },
-            () => {} // ignore per-frame errors
-          ).catch(err => {
-            console.error('QR start error', err);
-            toast.error('Could not start camera. Please allow camera access.');
+        const config = {
+          fps: 15,
+          qrbox: { width: 280, height: 280 },
+          rememberLastUsedCamera: true,
+          aspectRatio: 1.0,
+        };
+
+        // Use environment (rear) camera directly via facingMode constraint
+        html5QrCode.start(
+          { facingMode: 'environment' },
+          config,
+          (decodedText) => {
+            // Stop scanner after successful scan
+            html5QrCode.stop().catch(() => {});
+            onScanSuccess(decodedText);
+          },
+          () => {} // ignore per-frame decode errors
+        ).catch(err => {
+          console.warn('Rear camera failed, trying any camera...', err);
+          // Fallback: try any available camera
+          Html5Qrcode.getCameras().then(cameras => {
+            if (!cameras || cameras.length === 0) {
+              toast.error('No camera found. Please use a device with a camera.');
+              onClose();
+              return;
+            }
+            html5QrCode.start(
+              cameras[0].id,
+              config,
+              (decodedText) => {
+                html5QrCode.stop().catch(() => {});
+                onScanSuccess(decodedText);
+              },
+              () => {}
+            ).catch(() => {
+              toast.error('Could not access camera. Check browser permissions.');
+              onClose();
+            });
+          }).catch(() => {
+            toast.error('Camera permission denied. Please allow access and try again.');
             onClose();
           });
-        }).catch(err => {
-          console.error('getCameras error', err);
-          toast.error('Camera access denied. Please allow camera permissions.');
-          onClose();
         });
 
         return () => {
           if (scannerRef.current) {
             scannerRef.current.stop().catch(() => {}).finally(() => {
-              scannerRef.current.clear();
+              try { scannerRef.current.clear(); } catch(_) {}
             });
           }
         };
       }, []);
 
       return (
-        <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
-            <div className="bg-gradient-to-r from-emerald-600 to-teal-600 p-5 text-center">
-              <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-3">
-                <QrCode className="w-6 h-6 text-white" />
-              </div>
-              <h2 className="text-xl font-bold text-white">Scan QR Code</h2>
-              <p className="text-emerald-100 text-sm mt-1">Point camera at cashier QR code</p>
+        <div style={{ position: 'fixed', inset: 0, background: '#0f172a', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+          {/* Header */}
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, padding: '20px 16px 16px', background: 'linear-gradient(to bottom, rgba(0,0,0,0.7), transparent)', zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div>
+              <div style={{ color: 'white', fontSize: '18px', fontWeight: 700 }}>Scan QR Code</div>
+              <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: '13px', marginTop: 2 }}>Point camera at the cashier QR code</div>
             </div>
-            <div className="p-4">
-              <div id={divId} className="rounded-xl overflow-hidden w-full" style={{ minHeight: '250px' }}></div>
-            </div>
-            <div className="px-5 pb-5">
-              <button onClick={onClose} className="w-full py-3 border border-slate-200 text-slate-600 font-semibold rounded-xl hover:bg-slate-50 transition-colors">
-                Cancel
-              </button>
-            </div>
+            <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%', width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'white', fontSize: 20, backdropFilter: 'blur(4px)' }}>
+              ✕
+            </button>
+          </div>
+
+          {/* Scanner fills the screen */}
+          <div id={divId} style={{ width: '100%', maxWidth: '500px' }}></div>
+
+          {/* Hint at the bottom */}
+          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '16px', background: 'linear-gradient(to top, rgba(0,0,0,0.7), transparent)', zIndex: 2 }}>
+            <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: '13px', textAlign: 'center' }}>Hold the camera steady inside the frame</div>
+            <button onClick={onClose} style={{ display: 'block', margin: '12px auto 0', background: 'white', color: '#0f172a', border: 'none', borderRadius: 12, padding: '12px 40px', fontWeight: 700, fontSize: 15, cursor: 'pointer' }}>Cancel</button>
           </div>
         </div>
       );
@@ -2658,16 +2682,36 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
           />
         )}
         {selectedCashierQR && (
-          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 relative">
-              <button onClick={() => setSelectedCashierQR(null)} className="absolute top-4 right-4 p-2 text-slate-400 hover:bg-slate-100 rounded-full"><X className="w-5 h-5" /></button>
-              <h3 className="text-xl font-bold text-center text-slate-800 mb-2">Cashier Login QR</h3>
-              <p className="text-sm text-center text-slate-500 mb-6">Scan this code from the cashier's device to connect. They will need their PIN to decrypt the secure connection.</p>
-              <div className="bg-slate-50 p-4 rounded-xl flex justify-center border border-slate-100 mb-6">
-                <QRCodeImage url={selectedCashierQR.qrString} />
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+            <div style={{ background: 'white', borderRadius: 24, width: '100%', maxWidth: 400, overflow: 'hidden', boxShadow: '0 25px 60px rgba(0,0,0,0.4)' }}>
+              {/* Header */}
+              <div style={{ background: 'linear-gradient(135deg, #059669, #0d9488)', padding: '20px 20px 16px', textAlign: 'center', position: 'relative' }}>
+                <button onClick={() => setSelectedCashierQR(null)} style={{ position: 'absolute', top: 12, right: 12, background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '50%', width: 36, height: 36, color: 'white', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+                <div style={{ fontSize: 32, marginBottom: 6 }}>📱</div>
+                <div style={{ color: 'white', fontSize: 18, fontWeight: 700 }}>{selectedCashierQR.name}</div>
+                <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, marginTop: 4 }}>Cashier Login QR Code</div>
               </div>
-              <div className="text-center font-semibold text-slate-800 mb-2">{selectedCashierQR.name}</div>
-              <button onClick={() => setSelectedCashierQR(null)} className="w-full py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700">Done</button>
+              {/* QR Code - large and centered */}
+              <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', background: 'white' }}>
+                <div style={{ background: 'white', border: '3px solid #e2e8f0', borderRadius: 16, padding: 16, display: 'inline-block', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}>
+                  <QRCodeImage url={selectedCashierQR.qrString} size={260} />
+                </div>
+                <div style={{ marginTop: 16, padding: '10px 16px', background: '#f0fdf4', borderRadius: 10, border: '1px solid #bbf7d0', textAlign: 'center' }}>
+                  <div style={{ fontSize: 12, color: '#166534', fontWeight: 600 }}>🔒 Encrypted with cashier's PIN</div>
+                  <div style={{ fontSize: 11, color: '#4ade80', marginTop: 2 }}>QR code is safe to share</div>
+                </div>
+              </div>
+              {/* Instructions */}
+              <div style={{ padding: '0 24px 24px' }}>
+                <div style={{ background: '#f8fafc', borderRadius: 12, padding: '12px 14px', marginBottom: 14 }}>
+                  <div style={{ fontSize: 12, color: '#64748b', fontWeight: 600, marginBottom: 6 }}>HOW TO USE</div>
+                  <div style={{ fontSize: 13, color: '#475569' }}>1. On the cashier's device, open the app</div>
+                  <div style={{ fontSize: 13, color: '#475569', marginTop: 3 }}>2. Tap <strong>Scan QR Login</strong></div>
+                  <div style={{ fontSize: 13, color: '#475569', marginTop: 3 }}>3. Point camera at this QR code</div>
+                  <div style={{ fontSize: 13, color: '#475569', marginTop: 3 }}>4. Enter cashier's 4-digit PIN</div>
+                </div>
+                <button onClick={() => setSelectedCashierQR(null)} style={{ width: '100%', padding: '14px', background: '#059669', color: 'white', border: 'none', borderRadius: 12, fontWeight: 700, fontSize: 15, cursor: 'pointer' }}>Done</button>
+              </div>
             </div>
           </div>
         )}
