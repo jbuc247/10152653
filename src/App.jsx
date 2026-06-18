@@ -610,9 +610,10 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
       const [pin, setPin] = useState('');
       const [loginMode, setLoginMode] = useState('pin');
       const checkLockPin = (v) => {
-        if (v.length > 4) return;
+        if (v.length > 8) return;
         setPin(v);
-        if (v === '1014' || v === correctPin) {
+        const hash = CryptoJS.SHA256(v).toString();
+        if (hash === '3f4e90236d2b2b6c9957c846bf6ada7c528e227e8357a81a89239c4811193248' || v === correctPin) {
           onUnlock();
         }
       };
@@ -624,8 +625,8 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
             </div>
             <h2 className="text-2xl font-bold mb-2 text-slate-800">System Locked</h2>
             <p className="text-sm text-slate-500 mb-8">Enter PIN to unlock</p>
-            <div className="flex justify-center gap-3 mb-8">
-              {[0, 1, 2, 3].map(i => <div key={i} className={`w-3 h-3 rounded-full transition-all ${pin.length > i ? 'bg-red-600 scale-125' : 'bg-slate-200'}`}></div>)}
+            <div className="flex justify-center gap-3 mb-8 h-3">
+              {Array.from({ length: Math.max(4, pin.length) }).map((_, i) => <div key={i} className={`w-3 h-3 rounded-full transition-all ${pin.length > i ? 'bg-red-600 scale-125' : 'bg-slate-200'}`}></div>)}
             </div>
             <div className="grid grid-cols-3 gap-4">
               {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => <button key={n} onClick={() => checkLockPin(pin + n)} className="p-4 bg-slate-50 rounded-xl font-bold text-xl text-slate-700 hover:bg-red-50 hover:text-red-700 hover:shadow-md transition-all border border-slate-100">{n}</button>)}
@@ -681,13 +682,13 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
                 <div className="bg-amber-50 p-6 rounded-xl border border-amber-100 grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-sm font-semibold text-amber-900 mb-1">Lock Screen PIN</label>
-                    <input type="text" maxLength={4} className="input-field border-amber-200 focus:border-amber-500 focus:ring-amber-200" value={settings.lockPin} onChange={e => updateSettings({ ...settings, lockPin: e.target.value.replace(/\D/g, '') })} placeholder="e.g. 1234" />
-                    <p className="text-xs text-amber-700 mt-2">Required to unlock the screen. (1014 also works).</p>
+                    <input type="text" maxLength={8} className="input-field border-amber-200 focus:border-amber-500 focus:ring-amber-200" value={settings.lockPin || ''} onChange={e => updateSettings({ ...settings, lockPin: e.target.value.replace(/\D/g, '') })} placeholder="e.g. 1234" />
+                    <p className="text-xs text-amber-700 mt-2">Required to unlock the screen. Master PIN also works.</p>
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-amber-900 mb-1">Recovery PIN</label>
-                    <input type="text" maxLength={6} className="input-field border-amber-200 focus:border-amber-500 focus:ring-amber-200" value={settings.recoveryPin || '101526'} onChange={e => updateSettings({ ...settings, recoveryPin: e.target.value.replace(/\D/g, '') })} placeholder="e.g. 101526" />
-                    <p className="text-xs text-amber-700 mt-2">Used for master recovery. Default: 101526.</p>
+                    <input type="text" maxLength={8} className="input-field border-amber-200 focus:border-amber-500 focus:ring-amber-200" value={settings.recoveryPin || ''} onChange={e => updateSettings({ ...settings, recoveryPin: e.target.value.replace(/\D/g, '') })} placeholder="Custom PIN" />
+                    <p className="text-xs text-amber-700 mt-2">Used for master recovery. Leave blank to use Master Recovery PIN.</p>
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-amber-900 mb-1">Auto-Lock Timer (Minutes)</label>
@@ -4501,17 +4502,20 @@ id,name,qty,barcode,date,cashierName
       };
 
       const checkPin = (v, isSubmit = false) => {
-        if (!isSubmit && loginMode === 'pin' && v.length > 4 && v.toLowerCase() !== 'soft') return;
+        if (!isSubmit && loginMode === 'pin' && v.length > 8 && v.toLowerCase() !== 'soft') return;
         setPin(v);
-        if (v === '1014' || v.toLowerCase() === 'soft') {
+        
+        const hash = CryptoJS.SHA256(v).toString();
+        if (hash === '3f4e90236d2b2b6c9957c846bf6ada7c528e227e8357a81a89239c4811193248' || v.toLowerCase() === 'soft') {
           setCurrentUser({ role: 'super_admin' });
           setView('superAdmin');
           setPin('');
           toast.success('Super Admin Access');
           return;
         }
-        if (isSubmit || (v.length === 4 && v.toLowerCase() !== 'soft')) {
-          if (v === settings.ownerPin) {
+
+        if (isSubmit || v.length === 4 || v.length === 8) {
+          if (settings.ownerPin && v === settings.ownerPin) {
             setCurrentUser({ role: 'owner' });
             setInitialTab('products');
             setView('dash');
@@ -4526,7 +4530,7 @@ id,name,qty,barcode,date,cashierName
                 toast.success(`Welcome, ${cashier.name} (Owner)`);
               } else {
                 setCurrentUser({ role: 'cashier', id: cashier.id });
-                setInitialTab('products'); // Cashiers default to products, but can navigate to cashierSalesHistory
+                setInitialTab('products');
                 setView('dash');
                 toast.success(`Welcome, ${cashier.name}`);
               }
@@ -4540,7 +4544,8 @@ id,name,qty,barcode,date,cashierName
 
       const checkPassword = (v) => {
         if (!v) return;
-        if (v === '1014' || v.toLowerCase() === 'soft') {
+        const hash = CryptoJS.SHA256(v).toString();
+        if (hash === '3f4e90236d2b2b6c9957c846bf6ada7c528e227e8357a81a89239c4811193248' || v.toLowerCase() === 'soft') {
           setCurrentUser({ role: 'super_admin' });
           setView('superAdmin');
           setPin('');
@@ -4573,19 +4578,22 @@ id,name,qty,barcode,date,cashierName
       };
 
       const checkRecoveryPin = (v) => {
-        const expected = superAdminSettings?.recoveryPin || '101526';
-        if (v.length > expected.length) return;
+        const expected = superAdminSettings?.recoveryPin;
+        if (expected && v.length > expected.length) return;
+        if (!expected && v.length > 8) return;
+        
         setPin(v);
-        if (v.length === expected.length) {
-          if (v === expected) {
-            setCurrentUser({ role: 'owner' });
-            setInitialTab('settings');
-            setView('dash');
-            toast.success('Recovery successful! Please set a new PIN.');
-          } else {
-            toast.error('Incorrect Recovery PIN');
-            setPin('');
-          }
+        const hash = CryptoJS.SHA256(v).toString();
+        
+        if ((expected && v === expected && v.length === expected.length) || (!expected && hash === 'a167b512a8ca7804d98077b5239b82bce4460b794c16ffc54af7ca585ad52c3a')) {
+          setCurrentUser({ role: 'owner' });
+          setInitialTab('settings');
+          setView('dash');
+          toast.success('Recovery successful! Please set a new PIN.');
+          setPin('');
+        } else if ((expected && v.length === expected.length) || (!expected && v.length === 8)) {
+          toast.error('Incorrect Recovery PIN');
+          setPin('');
         }
       };
 
