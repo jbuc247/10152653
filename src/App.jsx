@@ -4446,7 +4446,10 @@ id,name,qty,barcode,date,cashierName
             if (s) setSettings({ ...DEFAULT_SETTINGS, ...s });
             else saveDataToDB('settings', DEFAULT_SETTINGS);
 
-            if (sas) setSuperAdminSettings({ ...DEFAULT_SUPER_ADMIN_SETTINGS, ...sas });
+            if (sas) {
+              setSuperAdminSettings({ ...DEFAULT_SUPER_ADMIN_SETTINGS, ...sas });
+              if (sas.lockPin && sas.lockPin.length > 0) setIsLocked(true);
+            }
             else saveDataToDB('superAdminSettings', DEFAULT_SUPER_ADMIN_SETTINGS);
           })
           .catch(err => console.error("Failed to load settings", err))
