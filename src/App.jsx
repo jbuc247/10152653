@@ -27,7 +27,8 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
       try {
         const payloadStr = JSON.stringify(payloadObj);
         const ciphertext = CryptoJS.AES.encrypt(payloadStr, masterPassword).toString();
-        const chunks = ciphertext.match(/.{1,200}/g) || [];
+        const hexCiphertext = CryptoJS.enc.Hex.stringify(CryptoJS.enc.Utf8.parse(ciphertext));
+        const chunks = hexCiphertext.match(/.{1,200}/g) || [];
         
         const countRes = await fetch(`${CLOUD_KV_API}/UpdateValue/${APP_NAMESPACE}/${encodeURIComponent(storeHandle)}_count/${chunks.length}`, {
           method: 'POST'
@@ -35,8 +36,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
         if (!countRes.ok) throw new Error('Failed to upload count');
 
         for (let i = 0; i < chunks.length; i++) {
-          const encoded = encodeURIComponent(chunks[i]);
-          const res = await fetch(`${CLOUD_KV_API}/UpdateValue/${APP_NAMESPACE}/${encodeURIComponent(storeHandle)}_${i}/${encoded}`, {
+          const res = await fetch(`${CLOUD_KV_API}/UpdateValue/${APP_NAMESPACE}/${encodeURIComponent(storeHandle)}_${i}/${chunks[i]}`, {
             method: 'POST'
           });
           if (!res.ok) throw new Error(`Failed to upload chunk ${i}`);
@@ -58,14 +58,15 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
         const count = parseInt(countText.replace(/^"|"$/g, ''));
         if (isNaN(count) || count <= 0) throw new Error('Invalid chunk count');
 
-        let ciphertext = '';
+        let hexCiphertext = '';
         for (let i = 0; i < count; i++) {
           const res = await fetch(`${CLOUD_KV_API}/GetValue/${APP_NAMESPACE}/${encodeURIComponent(storeHandle)}_${i}`);
           if (!res.ok) throw new Error(`Failed to fetch chunk ${i}`);
           const chunk = await res.text();
-          ciphertext += decodeURIComponent(chunk.replace(/^"|"$/g, ''));
+          hexCiphertext += chunk.replace(/^"|"$/g, '');
         }
 
+        const ciphertext = CryptoJS.enc.Utf8.stringify(CryptoJS.enc.Hex.parse(hexCiphertext));
         const bytes = CryptoJS.AES.decrypt(ciphertext, masterPassword);
         const decryptedStr = bytes.toString(CryptoJS.enc.Utf8);
         if (!decryptedStr) throw new Error('Invalid master password or corrupted data');
