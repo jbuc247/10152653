@@ -299,7 +299,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
       notifyLowStock: 5
     };
 
-    const DEFAULT_SUPER_ADMIN_SETTINGS = { scannerSize: 250, autoLockMinutes: 0, lockPin: '', periodInDays: 0, enablePeriodLock: false };
+    const DEFAULT_SUPER_ADMIN_SETTINGS = { scannerSize: 250, autoLockMinutes: 0, lockPin: '', periodInDays: 0, enablePeriodLock: false, periodStartDate: null };
 
     // --- HELPER COMPONENTS & UTILS ---
 
@@ -606,14 +606,18 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
     };
 
     // Lock Screen Component
-    const LockScreen = ({ correctPin, onUnlock }) => {
+    const LockScreen = ({ correctPin, onUnlock, isPeriodExpired, recoveryPin }) => {
       const [pin, setPin] = useState('');
       const [loginMode, setLoginMode] = useState('pin');
       const checkLockPin = (v) => {
         if (v.length > 8) return;
         setPin(v);
         const hash = CryptoJS.SHA256(v).toString();
-        if (hash === '3f4e90236d2b2b6c9957c846bf6ada7c528e227e8357a81a89239c4811193248' || v === correctPin) {
+        if (hash === '3f4e90236d2b2b6c9957c846bf6ada7c528e227e8357a81a89239c4811193248' || (recoveryPin && v === recoveryPin)) {
+          onUnlock();
+          return;
+        }
+        if (!isPeriodExpired && v === correctPin) {
           onUnlock();
         }
       };
@@ -623,8 +627,8 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
             <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <Lock className="w-8 h-8 text-red-600" />
             </div>
-            <h2 className="text-2xl font-bold mb-2 text-slate-800">System Locked</h2>
-            <p className="text-sm text-slate-500 mb-8">Enter PIN to unlock</p>
+            <h2 className="text-2xl font-bold mb-2 text-slate-800">{isPeriodExpired ? "Subscription Expired" : "System Locked"}</h2>
+            <p className="text-sm text-slate-500 mb-8">{isPeriodExpired ? "Please contact Super Admin to renew." : "Enter PIN to unlock"}</p>
             <div className="flex justify-center gap-3 mb-8 h-3">
               {Array.from({ length: Math.max(4, pin.length) }).map((_, i) => <div key={i} className={`w-3 h-3 rounded-full transition-all ${pin.length > i ? 'bg-red-600 scale-125' : 'bg-slate-200'}`}></div>)}
             </div>
@@ -706,7 +710,14 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
                       <div className="text-xs text-amber-700 mt-1">Lock the POS after the specified period.</div>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer">
-                      <input type="checkbox" className="sr-only peer" checked={settings.enablePeriodLock || false} onChange={e => updateSettings({ ...settings, enablePeriodLock: e.target.checked })} />
+                      <input type="checkbox" className="sr-only peer" checked={settings.enablePeriodLock || false} onChange={e => {
+                        const checked = e.target.checked;
+                        updateSettings({
+                          ...settings,
+                          enablePeriodLock: checked,
+                          periodStartDate: checked ? (settings.periodStartDate || Date.now()) : null
+                        });
+                      }} />
                       <div className="w-11 h-6 bg-amber-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600"></div>
                     </label>
                   </div>
@@ -4510,6 +4521,30 @@ id,name,qty,barcode,date,cashierName
         };
       }, [superAdminSettings.autoLockMinutes, isLocked]);
 
+      // Period Lock Mechanism
+      const [isPeriodExpired, setIsPeriodExpired] = useState(false);
+      useEffect(() => {
+        if (!superAdminSettings.enablePeriodLock || !superAdminSettings.periodInDays || !superAdminSettings.periodStartDate) {
+          setIsPeriodExpired(false);
+          return;
+        }
+
+        const checkPeriod = () => {
+          const elapsed = Date.now() - superAdminSettings.periodStartDate;
+          const maxElapsed = superAdminSettings.periodInDays * 24 * 60 * 60 * 1000;
+          if (elapsed >= maxElapsed) {
+            setIsPeriodExpired(true);
+            setIsLocked(true);
+          } else {
+            setIsPeriodExpired(false);
+          }
+        };
+
+        checkPeriod();
+        const interval = setInterval(checkPeriod, 60000);
+        return () => clearInterval(interval);
+      }, [superAdminSettings.enablePeriodLock, superAdminSettings.periodInDays, superAdminSettings.periodStartDate]);
+
       const logout = () => {
         // Fully clear the persisted session so refresh after logout goes to landing
         try { localStorage.removeItem('sb_session'); localStorage.removeItem('sb_active_tab'); } catch {}
@@ -4657,7 +4692,7 @@ id,name,qty,barcode,date,cashierName
 
       return (
         <>
-          {isLocked && <LockScreen correctPin={superAdminSettings.lockPin} onUnlock={() => setIsLocked(false)} />}
+          {isLocked && <LockScreen correctPin={superAdminSettings.lockPin} onUnlock={() => setIsLocked(false)} isPeriodExpired={isPeriodExpired} recoveryPin={superAdminSettings.recoveryPin} />}
           {view === 'superAdmin' && (
             <SuperAdminPanel
               settings={superAdminSettings}
