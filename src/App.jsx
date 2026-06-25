@@ -2853,8 +2853,8 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
       }, []);
 
       const handleConnect = async () => {
-        const trimmedUrl = dbUrl.trim();
-        const trimmedToken = dbToken.trim();
+        const trimmedUrl = dbUrl.replace(/["'\s]/g, '');
+        const trimmedToken = dbToken.replace(/["'\s]/g, '');
         if (!trimmedUrl || !trimmedToken) {
           setStatusMsg('Please enter both the Database URL and Auth Token.');
           setStatusType('error');
