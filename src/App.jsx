@@ -880,10 +880,10 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
         const parsed = lines.map(line => {
           const parts = line.split(',').map(p => p.trim()); if (parts.length < 6) return { status: 'error', msg: 'Invalid format', name: line, code: '?', price: 0, category: 'Unknown', cost: 0, stock: 0 };
           const code = parts[0]; const name = parts[1]; const price = parseFloat(parts[2]); const category = parts[3] || 'General'; const cost = parseFloat(parts[4]) || 0; const stock = parseFloat(parts[5]) || 0; const expiryDate = trackExp ? (parts[6] || '') : '';
-          const isDup = existingProducts.some(p => (p.barcode && p.barcode === code) || (p.name.toLowerCase() === name.toLowerCase() && p.cost === cost));
+          const isDup = existingProducts.some(p => (p.barcode && p.barcode === code) || ((p.name || '').toLowerCase() === (name || '').toLowerCase() && p.cost === cost));
           if (isNaN(price) || isNaN(cost) || isNaN(stock)) return { status: 'error', msg: 'Invalid number', name, code, price: 0, category, cost: 0, stock: 0, expiryDate };
           if (isDup) return { status: 'duplicate', msg: 'Barcode or Name/Cost exists', name, code, price, category, cost, stock, expiryDate };
-          return { status: 'ready', name, code, price, category, cost, stock, expiryDate, isCommodity: category.toLowerCase() === 'commodity' };
+          return { status: 'ready', name, code, price, category, cost, stock, expiryDate, isCommodity: (category || '').toLowerCase() === 'commodity' };
         }); setItems(parsed); setStep('preview');
       };
       const doImport = () => {
@@ -1010,7 +1010,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
       };
 
       const filteredProducts = useMemo(() => allProducts.filter(p =>
-        p.name.toLowerCase().includes(searchTerm.toLowerCase())
+        (p.name || '').toLowerCase().includes(searchTerm.toLowerCase())
       ), [allProducts, searchTerm]);
 
       return (
@@ -1178,7 +1178,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 
       useEffect(() => { if (totals.grandTotal > 0) setCashGiven(totals.grandTotal); }, [totals.grandTotal]);
 
-      const filteredCustomers = useMemo(() => customerSearch ? customers.filter(c => c.name.toLowerCase().includes(customerSearch.toLowerCase()) || c.phone.includes(customerSearch)) : [], [customers, customerSearch]);
+      const filteredCustomers = useMemo(() => customerSearch ? customers.filter(c => (c.name || '').toLowerCase().includes(customerSearch.toLowerCase()) || c.phone.includes(customerSearch)) : [], [customers, customerSearch]);
 
       return (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"><div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl relative">
         <div className="p-4 border-b flex justify-between items-center bg-slate-50">
@@ -1238,7 +1238,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
       const [previewData, setPreviewData] = useState([]);
 
       const cats = [...new Set(products.map(p => p.category))].filter(Boolean).sort((a, b) => a.localeCompare(b));
-      const filteredForSelection = products.filter(p => p.name.toLowerCase().includes(search.toLowerCase()) || (p.barcode && p.barcode.includes(search)));
+      const filteredForSelection = products.filter(p => (p.name || '').toLowerCase().includes(search.toLowerCase()) || (p.barcode && p.barcode.includes(search)));
 
       const generatePreview = () => {
         let affected = [];
@@ -1414,30 +1414,30 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
           'ten': '10'
         };
 
-        const words = rawTranscript.toLowerCase().trim().split(/\s+/);
+        const words = (rawTranscript || '').toLowerCase().trim().split(/\s+/);
         const normalizedWords = words.map(w => numberMap[w] || w);
         const transcript = normalizedWords.join(' ');
 
-        setVoiceFeedback(`Heard: "${rawTranscript}"${rawTranscript.toLowerCase() !== transcript ? ` (Parsed: "${transcript}")` : ''}`);
+        setVoiceFeedback(`Heard: "${rawTranscript}"${(rawTranscript || '').toLowerCase() !== transcript ? ` (Parsed: "${transcript}")` : ''}`);
 
         const findBestProductMatch = (query) => {
           const cleanQuery = query.toLowerCase().trim();
           if (!cleanQuery) return null;
 
           // 1. Exact name match
-          let best = products.find(p => p.name.toLowerCase() === cleanQuery);
+          let best = products.find(p => (p.name || '').toLowerCase() === cleanQuery);
           if (best) return best;
 
           // 2. Exact barcode match
-          best = products.find(p => p.barcode && p.barcode.toLowerCase() === cleanQuery);
+          best = products.find(p => p.barcode && (p.barcode || '').toLowerCase() === cleanQuery);
           if (best) return best;
 
           // 3. Starts with match
-          best = products.find(p => p.name.toLowerCase().startsWith(cleanQuery));
+          best = products.find(p => (p.name || '').toLowerCase().startsWith(cleanQuery));
           if (best) return best;
 
           // 4. Includes match
-          best = products.find(p => p.name.toLowerCase().includes(cleanQuery));
+          best = products.find(p => (p.name || '').toLowerCase().includes(cleanQuery));
           if (best) return best;
 
           // 5. Keyword similarity match
@@ -1446,7 +1446,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
             let highestScore = 0;
             let bestMatch = null;
             products.forEach(p => {
-              const prodNameLower = p.name.toLowerCase();
+              const prodNameLower = (p.name || '').toLowerCase();
               let score = 0;
               queryWords.forEach(qw => {
                 if (prodNameLower.includes(qw)) {
@@ -1602,7 +1602,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 
         if (transcript.startsWith('remove ')) {
           const productNameQuery = transcript.substring(7).trim();
-          const cartItem = cart.find(item => item.name.toLowerCase().includes(productNameQuery));
+          const cartItem = cart.find(item => (item.name || '').toLowerCase().includes(productNameQuery));
           if (cartItem) {
             removeCartItem(cartItem.cartId);
             speak(`Removed ${cartItem.name}`);
@@ -1720,7 +1720,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
             return (!start || itemDate >= start) && (!end || itemDate <= end);
           });
         };
-        return filterByDate([...(stockHistory || [])], stockDateRange).reverse().filter(s => s.name.toLowerCase().includes(stockSearch.toLowerCase()));
+        return filterByDate([...(stockHistory || [])], stockDateRange).reverse().filter(s => (s.name || '').toLowerCase().includes(stockSearch.toLowerCase()));
       }, [stockHistory, stockDateRange, stockSearch]);
 
       useEffect(() => {
@@ -1786,7 +1786,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 
       const cats = useMemo(() => [...new Set(products.map(p => p.category))].filter(Boolean).sort((a, b) => a.localeCompare(b)), [products]);
       const filtered = useMemo(() => {
-  let res = products.filter(p => (p.name.toLowerCase().includes(search.toLowerCase()) || (p.barcode && p.barcode.includes(search))) && (cat ? p.category === cat : true));
+  let res = products.filter(p => ((p.name || '').toLowerCase().includes(search.toLowerCase()) || (p.barcode && p.barcode.includes(search))) && (cat ? p.category === cat : true));
   if (activeTab === 'expiring') {
     const today = new Date();
     const nextWeek = new Date();
@@ -2037,7 +2037,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 
       const filteredStock = useMemo(() => {
         return stockHistory.filter(s => {
-          const matchSearch = s.name.toLowerCase().includes(searchVal.toLowerCase()) || s.cashierName?.toLowerCase().includes(searchVal.toLowerCase());
+          const matchSearch = (s.name || '').toLowerCase().includes(searchVal.toLowerCase()) || s.cashierName?.toLowerCase().includes(searchVal.toLowerCase());
           const dDate = new Date(s.date).toISOString().split('T')[0];
           const matchStart = !dateRange.start || dDate >= dateRange.start;
           const matchEnd = !dateRange.end || dDate <= dateRange.end;
@@ -2149,7 +2149,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
         window.open(`https://wa.me/${d.contact.replace(/\D/g, '').replace(/^0/, '254')}?text=${encodeURIComponent(msg)}`, '_blank'); 
       };
 
-      const filteredProducts = useMemo(() => productSearch ? (products || []).filter(p => p.name && typeof p.name === 'string' && p.name.toLowerCase().includes(productSearch.toLowerCase())) : [], [products, productSearch]);
+      const filteredProducts = useMemo(() => productSearch ? (products || []).filter(p => p.name && typeof p.name === 'string' && (p.name || '').toLowerCase().includes(productSearch.toLowerCase())) : [], [products, productSearch]);
 
       const handleMarkPaid = (d) => {
         if (confirm('Mark Paid?')) { 
@@ -2299,7 +2299,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
       };
 
       const filteredCustomers = useMemo(() => customers.filter(c =>
-        c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (c.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         c.phone.includes(searchTerm)
       ), [customers, searchTerm]);
 
@@ -2397,11 +2397,11 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
       };
 
       const filteredSales = useMemo(() => {
-        return filterByDate([...salesHistory], salesDateRange).reverse().filter(s => s.name.toLowerCase().includes(salesSearch.toLowerCase()));
+        return filterByDate([...salesHistory], salesDateRange).reverse().filter(s => (s.name || '').toLowerCase().includes(salesSearch.toLowerCase()));
       }, [salesHistory, salesDateRange, salesSearch]);
 
       const filteredStock = useMemo(() => {
-        return filterByDate([...stockHistory], stockDateRange).reverse().filter(s => s.name.toLowerCase().includes(stockSearch.toLowerCase()));
+        return filterByDate([...stockHistory], stockDateRange).reverse().filter(s => (s.name || '').toLowerCase().includes(stockSearch.toLowerCase()));
       }, [stockHistory, stockDateRange, stockSearch]);
 
       // NEW CALCULATIONS for owner's date-filtered sales summary
@@ -3414,7 +3414,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
       };
 
       const filteredSales = useMemo(() => {
-        return filterByDate([...salesHistory], salesDateRange).reverse().filter(s => s.name.toLowerCase().includes(salesSearch.toLowerCase()));
+        return filterByDate([...salesHistory], salesDateRange).reverse().filter(s => (s.name || '').toLowerCase().includes(salesSearch.toLowerCase()));
       }, [salesHistory, salesDateRange, salesSearch]);
 
       return (
@@ -3835,7 +3835,7 @@ id,name,qty,barcode,date,cashierName
             trend,
             confidence
           };
-        }).filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()));
+        }).filter(p => (p.name || '').toLowerCase().includes(searchTerm.toLowerCase()));
       }, [products, salesHistory, searchTerm]);
 
       return (

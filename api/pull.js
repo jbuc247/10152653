@@ -46,7 +46,10 @@ export default async function handler(req, res) {
       for (const row of result.rows) {
         if (row.full_json) {
           try {
-            parsedRows.push(JSON.parse(row.full_json));
+            const item = JSON.parse(row.full_json);
+            if (item && typeof item === 'object') {
+              parsedRows.push(item);
+            }
           } catch(e) {}
         }
       }
