@@ -476,34 +476,34 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
             <div key={index} style={{ display: 'grid', gridTemplateColumns: '3fr 1fr 1fr 1fr', gap: '4px' }}>
               <span>{item.name}</span>
               <span style={{ textAlign: 'right' }}>{item.quantity}</span>
-              <span style={{ textAlign: 'right' }}>{item.price.toFixed(2)}</span>
-              <span style={{ textAlign: 'right' }}>{(item.price * item.quantity).toFixed(2)}</span>
+              <span style={{ textAlign: 'right' }}>{(Number() || 0).toFixed(2)}</span>
+              <span style={{ textAlign: 'right' }}>{(Number(item.price * item.quantity) || 0).toFixed(2)}</span>
             </div>
           ))}
           {hr}
           <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
             <span>TOTAL:</span>
-            <span>{totals.grandTotal.toFixed(2)}</span>
+            <span>{(Number() || 0).toFixed(2)}</span>
           </div>
           {totals.totalDiscount > 0 && (
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span>Discount:</span>
-              <span>-{totals.totalDiscount.toFixed(2)}</span>
+              <span>-{(Number() || 0).toFixed(2)}</span>
             </div>
           )}
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <span>Subtotal:</span>
-            <span>{totals.subtotal.toFixed(2)}</span>
+            <span>{(Number() || 0).toFixed(2)}</span>
           </div>
           {hr}
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <span>PAID ({payment.method}):</span>
-            <span>{payment.method === 'Cash' ? payment.cashGiven.toFixed(2) : totals.grandTotal.toFixed(2)}</span>
+            <span>{payment.method === 'Cash' ? (Number() || 0).toFixed(2) : (Number() || 0).toFixed(2)}</span>
           </div>
           {payment.method === 'Cash' && payment.change > 0 && (
             <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
               <span>CHANGE:</span>
-              <span>{payment.change.toFixed(2)}</span>
+              <span>{(Number() || 0).toFixed(2)}</span>
             </div>
           )}
           <div style={{ height: '10px' }}></div>
@@ -543,22 +543,22 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 
         cart.forEach(item => {
           text += `${item.name}\n`;
-          text += `  ${item.quantity} x ${item.price.toFixed(2)} = ${(item.price * item.quantity).toFixed(2)}\n`;
+          text += `  ${item.quantity} x ${(Number() || 0).toFixed(2)} = ${(Number(item.price * item.quantity) || 0).toFixed(2)}\n`;
         });
 
         text += hr;
 
-        text += `Subtotal: ${totals.subtotal.toFixed(2)}\n`;
+        text += `Subtotal: ${(Number() || 0).toFixed(2)}\n`;
         if (totals.totalDiscount > 0) {
-          text += `Discount: -${totals.totalDiscount.toFixed(2)}\n`;
+          text += `Discount: -${(Number() || 0).toFixed(2)}\n`;
         }
-        text += `TOTAL: ${totals.grandTotal.toFixed(2)}\n`;
+        text += `TOTAL: ${(Number() || 0).toFixed(2)}\n`;
         text += hr;
 
-        const paidAmount = payment.method === 'Cash' ? payment.cashGiven.toFixed(2) : totals.grandTotal.toFixed(2);
+        const paidAmount = payment.method === 'Cash' ? (Number() || 0).toFixed(2) : (Number() || 0).toFixed(2);
         text += `PAID (${payment.method}): ${paidAmount}\n`;
         if (payment.method === 'Cash' && payment.change > 0) {
-          text += `CHANGE: ${payment.change.toFixed(2)}\n`;
+          text += `CHANGE: ${(Number() || 0).toFixed(2)}\n`;
         }
         text += '\n';
         if (settings.receiptShowExtraInfo) text += `${settings.extraInfo}\n\n`;
@@ -908,9 +908,9 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
     const OrderModal = ({ initialProducts, suppliers, shopName, onClose, initialSupplierId }) => {
       const [selectedSupplierId, setSelectedSupplierId] = useState(initialSupplierId || suppliers[0]?.id || '');
       const [quantities, setQuantities] = useState(() =>
-        initialProducts.reduce((acc, p) => ({ ...acc, [p.id]: 1 }), {})
+        initialProducts.reduce((acc, p) => ({ ...acc, [(p && p.id)]: 1 }), {})
       );
-      const [selectedProductIds, setSelectedProductIds] = useState(() => new Set(initialProducts.map(p => p.id)));
+      const [selectedProductIds, setSelectedProductIds] = useState(() => new Set(initialProducts.map(p => (p && p.id))));
 
       const handleQtyChange = (productId, qty) => {
         const newQty = Math.max(1, parseInt(qty, 10) || 1);
@@ -925,7 +925,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
       };
 
       const toggleAll = (e) => {
-        if (e.target.checked) setSelectedProductIds(new Set(initialProducts.map(p => p.id)));
+        if (e.target.checked) setSelectedProductIds(new Set(initialProducts.map(p => (p && p.id))));
         else setSelectedProductIds(new Set());
       };
 
@@ -936,13 +936,13 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
           return;
         }
 
-        const selectedItems = initialProducts.filter(p => selectedProductIds.has(p.id));
+        const selectedItems = initialProducts.filter(p => selectedProductIds.has((p && p.id)));
         if (selectedItems.length === 0) {
           toast.error("Please select at least one product.");
           return;
         }
 
-        const itemsList = selectedItems.map(p => `- ${p.name}: ${quantities[p.id]}`).join('\n');
+        const itemsList = selectedItems.map(p => `- ${p.name}: ${quantities[(p && p.id)]}`).join('\n');
         const message = `Hello ${supplier.name},\n\nThis is a supply request from *${shopName}*.\nPlease provide a quote for the following items:\n\n${itemsList}\n\nThank you.`;
 
         const phone = supplier.phone.replace(/\D/g, '').replace(/^0/, '254');
@@ -976,12 +976,12 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
                 </div>
                 <div className="space-y-2">
                   {initialProducts.map(p => (
-                    <div key={p.id} className="grid grid-cols-4 items-center gap-4 p-2 bg-slate-50 rounded-lg">
+                    <div key={(p && p.id)} className="grid grid-cols-4 items-center gap-4 p-2 bg-slate-50 rounded-lg">
                       <div className="col-span-3 flex items-center gap-3">
-                        <input type="checkbox" checked={selectedProductIds.has(p.id)} onChange={() => toggleProduct(p.id)} className="w-4 h-4 text-emerald-600 rounded" />
+                        <input type="checkbox" checked={selectedProductIds.has((p && p.id))} onChange={() => toggleProduct((p && p.id))} className="w-4 h-4 text-emerald-600 rounded" />
                         <span className="font-medium text-sm text-slate-800 truncate">{p.name}</span>
                       </div>
-                      <input type="number" value={quantities[p.id]} onChange={e => handleQtyChange(p.id, e.target.value)} disabled={!selectedProductIds.has(p.id)} className="input-field py-1.5 text-center disabled:bg-slate-200 disabled:text-slate-400" placeholder="Qty" />
+                      <input type="number" value={quantities[(p && p.id)]} onChange={e => handleQtyChange((p && p.id), e.target.value)} disabled={!selectedProductIds.has((p && p.id))} className="input-field py-1.5 text-center disabled:bg-slate-200 disabled:text-slate-400" placeholder="Qty" />
                     </div>
                   ))}
                 </div>
@@ -1033,12 +1033,12 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
             </div>
             <div className="flex-1 overflow-y-auto p-2">
               {filteredProducts.map(p => (
-                <label key={p.id} className="flex items-center gap-4 p-3 hover:bg-slate-50 rounded-lg cursor-pointer">
+                <label key={(p && p.id)} className="flex items-center gap-4 p-3 hover:bg-slate-50 rounded-lg cursor-pointer">
                   <input
                     type="checkbox"
                     className="w-5 h-5 text-emerald-600 bg-gray-100 border-gray-300 rounded focus:ring-emerald-500"
-                    checked={selectedIds.has(p.id)}
-                    onChange={() => handleToggle(p.id)}
+                    checked={selectedIds.has((p && p.id))}
+                    onChange={() => handleToggle((p && p.id))}
                   />
                   <span className="font-medium text-sm text-slate-800">{p.name}</span>
                 </label>
@@ -1133,13 +1133,13 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
         message += `-----------------------------------\n`;
         cart.forEach(item => {
           message += `${item.name}\n`;
-          message += `  ${item.quantity} x ${item.price.toFixed(2)} = ${(item.quantity * item.price).toFixed(2)}\n`;
+          message += `  ${item.quantity} x ${(Number() || 0).toFixed(2)} = ${(Number(item.quantity * item.price) || 0).toFixed(2)}\n`;
         });
         message += `-----------------------------------\n`;
-        message += `*TOTAL: Ksh ${totals.grandTotal.toFixed(2)}*\n`;
-        if (totals.totalDiscount > 0) message += `(Discount Applied: Ksh ${totals.totalDiscount.toFixed(2)})\n`;
-        message += `Paid (${payment.method}): Ksh ${payment.method === 'Cash' ? payment.cashGiven.toFixed(2) : totals.grandTotal.toFixed(2)}\n`;
-        if (payment.method === 'Cash' && payment.change > 0) message += `Change: Ksh ${payment.change.toFixed(2)}\n`;
+        message += `*TOTAL: Ksh ${(Number() || 0).toFixed(2)}*\n`;
+        if (totals.totalDiscount > 0) message += `(Discount Applied: Ksh ${(Number() || 0).toFixed(2)})\n`;
+        message += `Paid (${payment.method}): Ksh ${payment.method === 'Cash' ? (Number() || 0).toFixed(2) : (Number() || 0).toFixed(2)}\n`;
+        if (payment.method === 'Cash' && payment.change > 0) message += `Change: Ksh ${(Number() || 0).toFixed(2)}\n`;
         message += `\n${settings.receiptFooter}`;
         return message;
       };
@@ -1237,15 +1237,15 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
       const [previewMode, setPreviewMode] = useState(false);
       const [previewData, setPreviewData] = useState([]);
 
-      const cats = [...new Set(products.map(p => p.category))].filter(Boolean).sort((a, b) => a.localeCompare(b));
+      const cats = [...new Set(products.map(p => (p && p.category)))].filter(Boolean).sort((a, b) => a.localeCompare(b));
       const filteredForSelection = products.filter(p => (p.name || '').toLowerCase().includes(search.toLowerCase()) || (p.barcode && p.barcode.includes(search)));
 
       const generatePreview = () => {
         let affected = [];
         if (scope === 'all') affected = products;
-        else if (scope === 'category') affected = products.filter(p => p.category === catScope);
-        else if (scope === 'supplier') affected = products.filter(p => suppliers?.find(s => s.id === supplierScope)?.productIds?.includes(p.id));
-        else if (scope === 'selected') affected = products.filter(p => selectedProductIds.has(p.id));
+        else if (scope === 'category') affected = products.filter(p => (p && p.category) === catScope);
+        else if (scope === 'supplier') affected = products.filter(p => suppliers?.find(s => s.id === supplierScope)?.productIds?.includes((p && p.id)));
+        else if (scope === 'selected') affected = products.filter(p => selectedProductIds.has((p && p.id)));
 
         if (affected.length === 0) return toast.error('No products found for this scope.');
         
@@ -1267,9 +1267,9 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
       };
 
       const handleApply = () => {
-        const affectedIds = new Set(previewData.map(p => p.id));
+        const affectedIds = new Set(previewData.map(p => (p && p.id)));
         const updatedProducts = products.map(p => {
-           const previewItem = previewData.find(x => x.id === p.id);
+           const previewItem = previewData.find(x => x.id === (p && p.id));
            return previewItem ? { ...p, price: previewItem.newPrice } : p;
         });
 
@@ -1300,7 +1300,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
                 <table className="w-full text-left text-sm"><thead className="bg-slate-50"><tr><th className="p-2">Product</th><th className="p-2">Current</th><th className="p-2">New</th><th className="p-2">Diff</th></tr></thead>
                 <tbody>
                   {previewData.slice(0, 100).map(p => (
-                    <tr key={p.id} className="border-b"><td className="p-2">{p.name}</td><td className="p-2 text-slate-500">{p.price.toFixed(2)}</td><td className="p-2 font-bold text-emerald-600">{p.newPrice.toFixed(2)}</td><td className="p-2 text-xs">{(p.newPrice - p.price).toFixed(2)}</td></tr>
+                    <tr key={(p && p.id)} className="border-b"><td className="p-2">{p.name}</td><td className="p-2 text-slate-500">{(Number() || 0).toFixed(2)}</td><td className="p-2 font-bold text-emerald-600">{(Number() || 0).toFixed(2)}</td><td className="p-2 text-xs">{(Number(p.newPrice - p.price) || 0).toFixed(2)}</td></tr>
                   ))}
                   {previewData.length > 100 && <tr><td colSpan="4" className="p-2 text-center text-slate-400">...and {previewData.length - 100} more</td></tr>}
                 </tbody></table>
@@ -1331,7 +1331,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
                  <div className="border border-slate-200 rounded-xl p-3 max-h-48 overflow-auto">
                    <input className="input-field mb-2" placeholder="Search to select..." value={search} onChange={e => setSearch(e.target.value)} />
                    {filteredForSelection.map(p => (
-                     <label key={p.id} className="flex items-center gap-2 py-1"><input type="checkbox" checked={selectedProductIds.has(p.id)} onChange={e => { const newSet = new Set(selectedProductIds); e.target.checked ? newSet.add(p.id) : newSet.delete(p.id); setSelectedProductIds(newSet); }} /> {p.name} - Ksh {p.price}</label>
+                     <label key={(p && p.id)} className="flex items-center gap-2 py-1"><input type="checkbox" checked={selectedProductIds.has((p && p.id))} onChange={e => { const newSet = new Set(selectedProductIds); e.target.checked ? newSet.add((p && p.id)) : newSet.delete((p && p.id)); setSelectedProductIds(newSet); }} /> {p.name} - Ksh {p.price}</label>
                    ))}
                  </div>
               )}
@@ -1735,7 +1735,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
           window.removeEventListener('touchstart', handleAnyAction);
         };
       }, [showAttractMode]);
-      const addProd = () => { if (!form.name || !form.price || !form.stock) return toast.error('Missing fields'); if (form.code && products.some(p => p.barcode === form.code && p.id !== editId)) return toast.error('Barcode exists'); const newProd = { id: crypto.randomUUID(), name: form.name, category: form.cat || 'General', price: parseFloat(form.price), cost: parseFloat(form.cost) || 0, stock: parseFloat(form.stock), barcode: form.code, sold: 0, profit: 0, dateAdded: new Date().toISOString(), isCommodity: form.isCommodity, unit: form.isCommodity ? form.unit : undefined, expiryDate: form.expiryDate , cashierName: currentUser?.name || 'Unknown', timestamp: new Date().toISOString()}; setProducts([...products, newProd]); toast.success('Added'); setForm({ name: '', price: '', cost: '', stock: '', cat: '', code: '', isCommodity: false, unit: 'Kg', expiryDate: '' }); };
+      const addProd = () => { if (!form.name || !form.price || !form.stock) return toast.error('Missing fields'); if (form.code && products.some(p => p.barcode === form.code && (p && p.id) !== editId)) return toast.error('Barcode exists'); const newProd = { id: crypto.randomUUID(), name: form.name, category: form.cat || 'General', price: parseFloat(form.price), cost: parseFloat(form.cost) || 0, stock: parseFloat(form.stock), barcode: form.code, sold: 0, profit: 0, dateAdded: new Date().toISOString(), isCommodity: form.isCommodity, unit: form.isCommodity ? form.unit : undefined, expiryDate: form.expiryDate , cashierName: currentUser?.name || 'Unknown', timestamp: new Date().toISOString()}; setProducts([...products, newProd]); toast.success('Added'); setForm({ name: '', price: '', cost: '', stock: '', cat: '', code: '', isCommodity: false, unit: 'Kg', expiryDate: '' }); };
 
       const addToCart = (product) => {
         if (product.stock <= 0) { return toast.error(`${product.name} is out of stock.`); }
@@ -1781,12 +1781,12 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
       const handleCheckout = (saleDetails) => {
         processSale(saleDetails);
       };
-      function addStock(p, q) { const updated = products.map(x => x.id === p.id ? { ...x, stock: x.stock + q } : x); setProducts(updated); setStockHistory([...stockHistory, { name: p.name, qty: q, action: 'Added', barcode: p.barcode, date: new Date().toISOString(), cashierName: currentUser?.name }]); toast.success(`+${q} Stock: ${p.name}`, { duration: 1500 }); };
+      function addStock(p, q) { const updated = products.map(x => x.id === (p && p.id) ? { ...x, stock: x.stock + q } : x); setProducts(updated); setStockHistory([...stockHistory, { name: p.name, qty: q, action: 'Added', barcode: p.barcode, date: new Date().toISOString(), cashierName: currentUser?.name }]); toast.success(`+${q} Stock: ${p.name}`, { duration: 1500 }); };
       const handleScan = (code) => { const p = products.find(x => x.barcode === code); if (scannerMode === 'sell') { if (!p) { toast.error('Product not found', { duration: 1500 }); return; } addToCart(p); setScannerMode(null); return; } if (scannerMode === 'stock') { if (!p) { toast.error('Product not found', { duration: 1500 }); return; } setScannerMode(null); const q = prompt(`Add Stock for "${p.name}":`, '1'); if (q !== null) { const n = parseFloat(q); if (!isNaN(n) && n > 0) addStock(p, n); else toast.error('Invalid quantity'); } return; } setScannerMode(null); if (scannerMode === 'fill') { if (editId) setEditData({ ...editData, barcode: code }); else setForm({ ...form, code }); toast.success('Barcode scanned'); } else if (scannerMode === 'update') { if (products.some(x => x.barcode === code && x.id !== updateId)) { toast.error('Barcode is already taken'); } else { setProducts(products.map(x => x.id === updateId ? { ...x, barcode: code } : x)); toast.success('Barcode updated'); } setUpdateId(null); } };
 
-      const cats = useMemo(() => [...new Set(products.map(p => p.category))].filter(Boolean).sort((a, b) => a.localeCompare(b)), [products]);
+      const cats = useMemo(() => [...new Set(products.map(p => (p && p.category)))].filter(Boolean).sort((a, b) => a.localeCompare(b)), [products]);
       const filtered = useMemo(() => {
-  let res = products.filter(p => ((p.name || '').toLowerCase().includes(search.toLowerCase()) || (p.barcode && p.barcode.includes(search))) && (cat ? p.category === cat : true));
+  let res = products.filter(p => ((p.name || '').toLowerCase().includes(search.toLowerCase()) || (p.barcode && p.barcode.includes(search))) && (cat ? (p && p.category) === cat : true));
   if (activeTab === 'expiring') {
     const today = new Date();
     const nextWeek = new Date();
@@ -1814,7 +1814,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
       };
 
       const handleSelect = (id) => { const newSet = new Set(selectedIds); if (newSet.has(id)) { newSet.delete(id); } else { newSet.add(id); } setSelectedIds(newSet); };
-      const handleSelectAll = (e) => { if (e.target.checked) { setSelectedIds(new Set(filtered.map(p => p.id))); } else { setSelectedIds(new Set()); } };
+      const handleSelectAll = (e) => { if (e.target.checked) { setSelectedIds(new Set(filtered.map(p => (p && p.id)))); } else { setSelectedIds(new Set()); } };
 
       useEffect(() => {
         const handleGlobalScan = (e) => {
@@ -1912,7 +1912,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
                   <button onClick={() => {
                     const newCat = prompt('Rename Category:', cat);
                     if (newCat && newCat.trim() && newCat !== cat) {
-                      setProducts(products.map(p => p.category === cat ? { ...p, category: newCat.trim() } : p));
+                      setProducts(products.map(p => (p && p.category) === cat ? { ...p, category: newCat.trim() } : p));
                       setCat(newCat.trim());
                       toast.success('Category renamed');
                     }
@@ -1921,10 +1921,10 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
                   </button>
                 )}
               </div>
-              {role === 'owner' && selectedIds.size > 0 && <button onClick={() => handleCreateOrder(products.filter(p => selectedIds.has(p.id)))} className="btn-primary bg-blue-600 hover:bg-blue-700 py-2 px-4 whitespace-nowrap"><Truck className="w-4 h-4" /> Order ({selectedIds.size})</button>}
-              {role === 'owner' && selectedIds.size > 0 && <button onClick={() => { setShowShoppingListModal(true); setShoppingListItems(products.filter(p => selectedIds.has(p.id)).map(p => ({ ...p, qty: 1 }))); }} className="btn-primary bg-emerald-600 hover:bg-emerald-700 py-2 px-4 whitespace-nowrap"><ClipboardList className="w-4 h-4" /> Create shopping list</button>}
+              {role === 'owner' && selectedIds.size > 0 && <button onClick={() => handleCreateOrder(products.filter(p => selectedIds.has((p && p.id))))} className="btn-primary bg-blue-600 hover:bg-blue-700 py-2 px-4 whitespace-nowrap"><Truck className="w-4 h-4" /> Order ({selectedIds.size})</button>}
+              {role === 'owner' && selectedIds.size > 0 && <button onClick={() => { setShowShoppingListModal(true); setShoppingListItems(products.filter(p => selectedIds.has((p && p.id))).map(p => ({ ...p, qty: 1 }))); }} className="btn-primary bg-emerald-600 hover:bg-emerald-700 py-2 px-4 whitespace-nowrap"><ClipboardList className="w-4 h-4" /> Create shopping list</button>}
             </div>
-            <div>{role === 'owner' && filtered.length > 0 && (<div className="flex items-center gap-2 mb-3 px-1"><input type="checkbox" onChange={handleSelectAll} checked={selectedIds.size === filtered.length && filtered.length > 0} className="w-4 h-4 text-emerald-600 bg-gray-100 border-gray-300 rounded focus:ring-emerald-500" /><span className="text-xs text-slate-500 font-medium">Select all ({filtered.length})</span></div>)}<div className="grid grid-cols-1 md:grid-cols-2 gap-3"><ErrorBoundary>{filtered.slice((currentPage - 1) * 50, currentPage * 50).map(p => { const safePrice = Number(p.price) || 0; const safeCost = Number(p.cost) || 0; const safeStock = Number(p.stock) || 0; const isEdit = editId === p.id; if (isEdit) { return (<div key={p.id} className="bg-white rounded-2xl border-2 border-emerald-300 shadow-sm p-4 md:col-span-2"><div className="grid grid-cols-1 md:grid-cols-2 gap-3"><input className="input-field py-2 text-sm" placeholder="Name" value={editData.name} onChange={e => setEditData({ ...editData, name: e.target.value })} /><input className="input-field py-2 text-xs font-mono" placeholder="Barcode" value={editData.barcode || ''} onChange={e => setEditData({ ...editData, barcode: e.target.value })} />{(role === 'owner' || perms.editPriceAndCost) ? <input type="number" className="input-field py-2" placeholder="Price" value={editData.price ?? ''} onChange={e => setEditData({ ...editData, price: parseFloat(e.target.value) })} /> : <div className="py-2 text-slate-600">Ksh. {(Number(editData.price) || 0).toLocaleString()}</div>}{canViewCosts && ((role === 'owner' || perms.editPriceAndCost) ? <input type="number" className="input-field py-2" placeholder="Cost" value={editData.cost ?? ''} onChange={e => setEditData({ ...editData, cost: parseFloat(e.target.value) })} /> : <div className="py-2 text-slate-500">Cost: Ksh. {(Number(editData.cost) || 0).toLocaleString()}</div>)}<input type="number" className="input-field py-2" placeholder="Stock" value={editData.stock ?? ''} onChange={e => setEditData({ ...editData, stock: parseFloat(e.target.value) })} /><input className="input-field py-2" placeholder="Category" value={editData.category || ''} onChange={e => setEditData({ ...editData, category: e.target.value })} />{settings.trackExpiry !== false && <input type="month" className="input-field py-2" value={editData.expiryDate || ''} onChange={e => setEditData({ ...editData, expiryDate: e.target.value })} />}<div className="flex items-center gap-2"><input type="checkbox" id={`commodity-edit-${p.id}`} checked={!!editData.isCommodity} onChange={e => setEditData({ ...editData, isCommodity: e.target.checked })} className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500" /><label htmlFor={`commodity-edit-${p.id}`} className="text-xs font-medium">Commodity</label>{!!editData.isCommodity && (<select value={editData.unit || 'Kg'} onChange={e => setEditData({ ...editData, unit: e.target.value })} className="input-field py-1 text-xs w-20"><option value="Kg">Kg</option><option value="L">L</option></select>)}</div></div><div className="flex justify-end gap-2 mt-3"><button onClick={() => setEditId(null)} className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 text-sm font-medium flex items-center gap-1"><X className="w-4 h-4" /> Cancel</button><button onClick={() => { const updated = products.map(x => x.id === editId ? { ...x, ...editData, unit: editData.isCommodity ? (editData.unit || 'Kg') : undefined } : x); setProducts(updated); toast.success('Updated'); setEditId(null); }} className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-sm font-medium flex items-center gap-1"><Check className="w-4 h-4" /> Save</button></div></div>); } return (<div key={p.id} className={`bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow p-4 flex ${p.expiryDate ? 'ring-1 ring-amber-100' : ''}`}><div className="w-2/5 flex flex-col justify-between pr-4 border-r border-dashed border-slate-200"><div>{role === 'owner' ? (<input type="checkbox" checked={selectedIds.has(p.id)} onChange={() => handleSelect(p.id)} className="w-5 h-5 text-emerald-600 bg-white border-slate-300 rounded-md focus:ring-emerald-500" />) : <div className="h-5"/>}</div><div className="flex-1 flex items-center"><div className="text-xl md:text-2xl font-extrabold text-emerald-600 leading-tight">Ksh. {safePrice.toLocaleString()}{p.isCommodity ? <span className="text-sm font-semibold">/{p.unit}</span> : ''}</div></div><div className="flex items-center gap-2"><span className={`px-3 py-1 rounded-full text-xs font-bold ${safeStock <= 5 ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>{safeStock} {p.isCommodity ? p.unit : 'left'}</span>{(role === 'owner' || perms.addStock) && <button onClick={() => { const q = prompt('Add Stock:'); if (q) addStock(p, parseFloat(q)) }} className="p-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg" title="Add Stock"><Plus className="w-4 h-4 text-slate-700" /></button>}</div></div><div className="w-3/5 pl-4 flex flex-col">{settings.trackExpiry !== false && p.expiryDate && (<div className="self-start mb-2"><span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-amber-50 text-amber-700 text-xs font-bold border border-amber-100"><Calendar className="w-3 h-3" /> Exp: {p.expiryDate}</span></div>)}<div className="text-base md:text-lg font-bold text-slate-900 leading-tight">{p.name}</div>{canViewCosts && <div className="text-sm text-slate-500 mt-1">Ksh. {safeCost.toLocaleString()}{p.isCommodity ? `/${p.unit}` : ''}</div>}{p.category && <div className="text-sm text-slate-500 mt-1">{p.category}</div>}{p.barcode && <div className="text-[10px] text-slate-400 font-mono mt-1 truncate">{p.barcode}</div>}<div className="border-t border-slate-100 mt-auto pt-3 flex gap-1.5 flex-wrap"><button onClick={() => addToCart(p)} className="p-2 bg-emerald-50 hover:bg-emerald-100 rounded-lg" title="Add to Cart"><ShoppingCart className="w-4 h-4 text-emerald-600" /></button>{(role === 'owner' || perms.addStock) && <button onClick={() => { const q = prompt('Add Stock:'); if (q) addStock(p, parseFloat(q)) }} className="p-2 bg-blue-50 hover:bg-blue-100 rounded-lg" title="Add Stock"><PackagePlus className="w-4 h-4 text-blue-600" /></button>}{settings.showScan && (role === 'owner' || perms.editProducts) && <button onClick={() => { setUpdateId(p.id); setScannerMode('update'); }} className="p-2 bg-indigo-50 hover:bg-indigo-100 rounded-lg" title="Update Barcode"><QrCode className="w-4 h-4 text-indigo-600" /></button>}{(role === 'owner' || perms.editProducts) && <button onClick={() => { setEditId(p.id); setEditData({ ...p }) }} className="p-2 bg-amber-50 hover:bg-amber-100 rounded-lg" title="Edit"><Edit2 className="w-4 h-4 text-amber-600" /></button>}{(role === 'owner' || perms.editProducts) && <button onClick={() => { if (confirm('Delete?')) setProducts(products.filter(x => x.id !== p.id)) }} className="p-2 bg-red-50 hover:bg-red-100 rounded-lg" title="Delete"><Trash2 className="w-4 h-4 text-red-500" /></button>}</div></div></div>); })}</ErrorBoundary>{filtered.length === 0 && <div className="md:col-span-2 p-8 text-center text-slate-400 bg-white rounded-xl border border-slate-200">No products found.</div>}</div><Pagination totalItems={filtered.length} itemsPerPage={50} currentPage={currentPage} setCurrentPage={setCurrentPage} /></div></>) : <div className="bg-white rounded-2xl p-6 border border-slate-200">Orders content placeholder</div>}
+            <div>{role === 'owner' && filtered.length > 0 && (<div className="flex items-center gap-2 mb-3 px-1"><input type="checkbox" onChange={handleSelectAll} checked={selectedIds.size === filtered.length && filtered.length > 0} className="w-4 h-4 text-emerald-600 bg-gray-100 border-gray-300 rounded focus:ring-emerald-500" /><span className="text-xs text-slate-500 font-medium">Select all ({filtered.length})</span></div>)}<div className="grid grid-cols-1 md:grid-cols-2 gap-3"><ErrorBoundary>{filtered.slice((currentPage - 1) * 50, currentPage * 50).map(p => { const safePrice = Number(p.price) || 0; const safeCost = Number(p.cost) || 0; const safeStock = Number(p.stock) || 0; const isEdit = editId === (p && p.id); if (isEdit) { return (<div key={(p && p.id)} className="bg-white rounded-2xl border-2 border-emerald-300 shadow-sm p-4 md:col-span-2"><div className="grid grid-cols-1 md:grid-cols-2 gap-3"><input className="input-field py-2 text-sm" placeholder="Name" value={editData.name} onChange={e => setEditData({ ...editData, name: e.target.value })} /><input className="input-field py-2 text-xs font-mono" placeholder="Barcode" value={editData.barcode || ''} onChange={e => setEditData({ ...editData, barcode: e.target.value })} />{(role === 'owner' || perms.editPriceAndCost) ? <input type="number" className="input-field py-2" placeholder="Price" value={editData.price ?? ''} onChange={e => setEditData({ ...editData, price: parseFloat(e.target.value) })} /> : <div className="py-2 text-slate-600">Ksh. {(Number(editData.price) || 0).toLocaleString()}</div>}{canViewCosts && ((role === 'owner' || perms.editPriceAndCost) ? <input type="number" className="input-field py-2" placeholder="Cost" value={editData.cost ?? ''} onChange={e => setEditData({ ...editData, cost: parseFloat(e.target.value) })} /> : <div className="py-2 text-slate-500">Cost: Ksh. {(Number(editData.cost) || 0).toLocaleString()}</div>)}<input type="number" className="input-field py-2" placeholder="Stock" value={editData.stock ?? ''} onChange={e => setEditData({ ...editData, stock: parseFloat(e.target.value) })} /><input className="input-field py-2" placeholder="Category" value={editData.category || ''} onChange={e => setEditData({ ...editData, category: e.target.value })} />{settings.trackExpiry !== false && <input type="month" className="input-field py-2" value={editData.expiryDate || ''} onChange={e => setEditData({ ...editData, expiryDate: e.target.value })} />}<div className="flex items-center gap-2"><input type="checkbox" id={`commodity-edit-${(p && p.id)}`} checked={!!editData.isCommodity} onChange={e => setEditData({ ...editData, isCommodity: e.target.checked })} className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500" /><label htmlFor={`commodity-edit-${(p && p.id)}`} className="text-xs font-medium">Commodity</label>{!!editData.isCommodity && (<select value={editData.unit || 'Kg'} onChange={e => setEditData({ ...editData, unit: e.target.value })} className="input-field py-1 text-xs w-20"><option value="Kg">Kg</option><option value="L">L</option></select>)}</div></div><div className="flex justify-end gap-2 mt-3"><button onClick={() => setEditId(null)} className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 text-sm font-medium flex items-center gap-1"><X className="w-4 h-4" /> Cancel</button><button onClick={() => { const updated = products.map(x => x.id === editId ? { ...x, ...editData, unit: editData.isCommodity ? (editData.unit || 'Kg') : undefined } : x); setProducts(updated); toast.success('Updated'); setEditId(null); }} className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-sm font-medium flex items-center gap-1"><Check className="w-4 h-4" /> Save</button></div></div>); } return (<div key={(p && p.id)} className={`bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow p-4 flex ${p.expiryDate ? 'ring-1 ring-amber-100' : ''}`}><div className="w-2/5 flex flex-col justify-between pr-4 border-r border-dashed border-slate-200"><div>{role === 'owner' ? (<input type="checkbox" checked={selectedIds.has((p && p.id))} onChange={() => handleSelect((p && p.id))} className="w-5 h-5 text-emerald-600 bg-white border-slate-300 rounded-md focus:ring-emerald-500" />) : <div className="h-5"/>}</div><div className="flex-1 flex items-center"><div className="text-xl md:text-2xl font-extrabold text-emerald-600 leading-tight">Ksh. {safePrice.toLocaleString()}{p.isCommodity ? <span className="text-sm font-semibold">/{p.unit}</span> : ''}</div></div><div className="flex items-center gap-2"><span className={`px-3 py-1 rounded-full text-xs font-bold ${safeStock <= 5 ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>{safeStock} {p.isCommodity ? p.unit : 'left'}</span>{(role === 'owner' || perms.addStock) && <button onClick={() => { const q = prompt('Add Stock:'); if (q) addStock(p, parseFloat(q)) }} className="p-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg" title="Add Stock"><Plus className="w-4 h-4 text-slate-700" /></button>}</div></div><div className="w-3/5 pl-4 flex flex-col">{settings.trackExpiry !== false && p.expiryDate && (<div className="self-start mb-2"><span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-amber-50 text-amber-700 text-xs font-bold border border-amber-100"><Calendar className="w-3 h-3" /> Exp: {p.expiryDate}</span></div>)}<div className="text-base md:text-lg font-bold text-slate-900 leading-tight">{p.name}</div>{canViewCosts && <div className="text-sm text-slate-500 mt-1">Ksh. {safeCost.toLocaleString()}{p.isCommodity ? `/${p.unit}` : ''}</div>}{(p && p.category) && <div className="text-sm text-slate-500 mt-1">{(p && p.category)}</div>}{p.barcode && <div className="text-[10px] text-slate-400 font-mono mt-1 truncate">{p.barcode}</div>}<div className="border-t border-slate-100 mt-auto pt-3 flex gap-1.5 flex-wrap"><button onClick={() => addToCart(p)} className="p-2 bg-emerald-50 hover:bg-emerald-100 rounded-lg" title="Add to Cart"><ShoppingCart className="w-4 h-4 text-emerald-600" /></button>{(role === 'owner' || perms.addStock) && <button onClick={() => { const q = prompt('Add Stock:'); if (q) addStock(p, parseFloat(q)) }} className="p-2 bg-blue-50 hover:bg-blue-100 rounded-lg" title="Add Stock"><PackagePlus className="w-4 h-4 text-blue-600" /></button>}{settings.showScan && (role === 'owner' || perms.editProducts) && <button onClick={() => { setUpdateId((p && p.id)); setScannerMode('update'); }} className="p-2 bg-indigo-50 hover:bg-indigo-100 rounded-lg" title="Update Barcode"><QrCode className="w-4 h-4 text-indigo-600" /></button>}{(role === 'owner' || perms.editProducts) && <button onClick={() => { setEditId((p && p.id)); setEditData({ ...p }) }} className="p-2 bg-amber-50 hover:bg-amber-100 rounded-lg" title="Edit"><Edit2 className="w-4 h-4 text-amber-600" /></button>}{(role === 'owner' || perms.editProducts) && <button onClick={() => { if (confirm('Delete?')) setProducts(products.filter(x => x.id !== (p && p.id))) }} className="p-2 bg-red-50 hover:bg-red-100 rounded-lg" title="Delete"><Trash2 className="w-4 h-4 text-red-500" /></button>}</div></div></div>); })}</ErrorBoundary>{filtered.length === 0 && <div className="md:col-span-2 p-8 text-center text-slate-400 bg-white rounded-xl border border-slate-200">No products found.</div>}</div><Pagination totalItems={filtered.length} itemsPerPage={50} currentPage={currentPage} setCurrentPage={setCurrentPage} /></div></>) : <div className="bg-white rounded-2xl p-6 border border-slate-200">Orders content placeholder</div>}
           </div>
           <div className="lg:col-span-1 sticky top-8 order-1 lg:order-2"><CartPanel cart={cart} onUpdate={updateCartItem} onRemove={removeCartItem} onClear={clearCart} onCheckout={() => setIsCheckingOut(true)} currentUser={currentUser} /></div>
         </div>
@@ -2082,7 +2082,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
         
         let tempProducts = [...products];
         for (const item of debtCart) {
-          const pIndex = tempProducts.findIndex(p => p.id === item.id);
+          const pIndex = tempProducts.findIndex(p => (p && p.id) === item.id);
           if (pIndex === -1) return toast.error("Product not found: " + item.name);
           if (tempProducts[pIndex].stock < item.quantity) return toast.error(`Not enough stock for ${item.name}. Need ${item.quantity}, have ${tempProducts[pIndex].stock}`);
           tempProducts[pIndex] = { ...tempProducts[pIndex], stock: tempProducts[pIndex].stock - item.quantity };
@@ -2183,14 +2183,14 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
                 {filteredProducts.length > 0 && (
                   <div className="absolute z-10 w-full bg-white border rounded-lg mt-1 max-h-40 overflow-auto shadow-lg">
                     {filteredProducts.map(p => (
-                      <div key={p.id} onClick={() => { 
+                      <div key={(p && p.id)} onClick={() => { 
                         const qtyStr = prompt(`Enter quantity for ${p.name}`, '1');
                         if (qtyStr !== null) {
                           const qty = parseInt(qtyStr);
                           if (!isNaN(qty) && qty > 0) {
-                            const existing = debtCart.find(item => item.id === p.id);
+                            const existing = debtCart.find(item => item.id === (p && p.id));
                             if (existing) {
-                              setDebtCart(debtCart.map(item => item.id === p.id ? { ...item, quantity: item.quantity + qty } : item));
+                              setDebtCart(debtCart.map(item => item.id === (p && p.id) ? { ...item, quantity: item.quantity + qty } : item));
                             } else {
                               setDebtCart([...debtCart, { ...p, quantity: qty }]);
                             }
@@ -2730,7 +2730,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
                   <label className="text-sm font-medium text-slate-600 mb-1 block">Products Supplied</label>
                   <div className="p-2 border rounded-lg min-h-[60px] bg-slate-50 flex flex-wrap gap-2">
                     {form.productIds.length > 0 ? form.productIds.map(id => {
-                      const product = products.find(p => p.id === id);
+                      const product = products.find(p => (p && p.id) === id);
                       return product ? <span key={id} className="px-2 py-1 bg-emerald-100 text-emerald-800 text-xs font-medium rounded-full">{product.name}</span> : null;
                     }) : <span className="text-slate-400 text-sm p-2">No products selected</span>}
                   </div>
@@ -2751,7 +2751,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
             {lowStockProducts.length > 0 ? (<>
               <div className="space-y-2 max-h-96 overflow-y-auto pr-2">
                 {lowStockProducts.map(p => (
-                  <div key={p.id} className="flex justify-between items-center p-2 bg-red-50/50 rounded-lg text-sm">
+                  <div key={(p && p.id)} className="flex justify-between items-center p-2 bg-red-50/50 rounded-lg text-sm">
                     <span className="font-medium text-slate-700">{p.name}</span>
                     <span className="font-bold text-red-600">{p.stock} left</span>
                   </div>
@@ -3586,9 +3586,9 @@ id,name,qty,barcode,date,cashierName
         sections.PRODUCTS.forEach(p => {
           if (p.name && p.price && p.stock) {
             imported.products.push({
-              id: p.id || crypto.randomUUID(),
+              id: (p && p.id) || crypto.randomUUID(),
               name: p.name,
-              category: p.category || 'General',
+              category: (p && p.category) || 'General',
               price: parseFloat(p.price),
               cost: parseFloat(p.cost || 0),
               stock: parseFloat(p.stock),
@@ -3875,15 +3875,15 @@ id,name,qty,barcode,date,cashierName
                   {forecastData.map(p => {
                     const isLowStock = p.daysRemaining <= 7;
                     return (
-                      <tr key={p.id} className="hover:bg-slate-50">
+                      <tr key={(p && p.id)} className="hover:bg-slate-50">
                         <td className="p-4">
                           <div className="font-medium text-slate-800">{p.name}</div>
                           {p.confidence === 'Low' && <div className="text-[10px] text-amber-600 font-bold mt-0.5">LOW CONFIDENCE</div>}
                         </td>
                         <td className="p-4 text-right font-medium">{p.stock}</td>
-                        <td className="p-4 text-right text-slate-500">{p.avgDailySales.toFixed(1)}</td>
-                        <td className="p-4 text-right text-slate-500">{p.weeklyForecast.toFixed(1)}</td>
-                        <td className="p-4 text-right text-slate-500">{p.monthlyForecast.toFixed(1)}</td>
+                        <td className="p-4 text-right text-slate-500">{(Number() || 0).toFixed(1)}</td>
+                        <td className="p-4 text-right text-slate-500">{(Number() || 0).toFixed(1)}</td>
+                        <td className="p-4 text-right text-slate-500">{(Number() || 0).toFixed(1)}</td>
                         <td className="p-4 text-right">
                           {p.daysRemaining === Infinity ? (
                             <span className="text-slate-400">&infin;</span>
@@ -3997,7 +3997,7 @@ id,name,qty,barcode,date,cashierName
           <div className="bg-slate-900 text-white p-3 rounded-xl shadow-xl text-sm border border-slate-700 min-w-[190px]">
             <p className="font-bold text-emerald-400 mb-2">{d.label}</p>
             <p className="flex justify-between gap-4"><span className="text-slate-400">Profit:</span><span className="font-semibold">Ksh {Math.round(d.profit).toLocaleString()}</span></p>
-            <p className="flex justify-between gap-4"><span className="text-slate-400">Quantity Sold:</span><span className="font-semibold">{Number(d.quantity.toFixed(1)).toLocaleString()} units</span></p>
+            <p className="flex justify-between gap-4"><span className="text-slate-400">Quantity Sold:</span><span className="font-semibold">{Number((Number() || 0).toFixed(1)).toLocaleString()} units</span></p>
             <p className="flex justify-between gap-4"><span className="text-slate-400">Transactions:</span><span className="font-semibold">{d.transactions}</span></p>
           </div>
         );
@@ -4005,11 +4005,11 @@ id,name,qty,barcode,date,cashierName
 
       const formatYAxis = (v) => {
         if (metric === 'profit') {
-          if (v >= 1000000) return `${(v / 1000000).toFixed(1)}M`;
-          if (v >= 1000) return `${(v / 1000).toFixed(0)}K`;
+          if (v >= 1000000) return `${(Number(v / 1000000) || 0).toFixed(1)}M`;
+          if (v >= 1000) return `${(Number(v / 1000) || 0).toFixed(0)}K`;
           return v.toLocaleString();
         }
-        if (v >= 1000) return `${(v / 1000).toFixed(1)}K`;
+        if (v >= 1000) return `${(Number(v / 1000) || 0).toFixed(1)}K`;
         return v;
       };
 
@@ -4153,8 +4153,8 @@ id,name,qty,barcode,date,cashierName
             {/* Legend */}
             {hasData && monthlyData.length > 0 && (
               <div className="flex flex-wrap gap-x-6 gap-y-1 mt-4 text-xs text-slate-500 border-t border-slate-100 pt-4">
-                {chartBest && <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm inline-block bg-emerald-600"></span> Highest {metric === 'profit' ? 'Profit' : 'Qty'}: {chartBest.label} ({metric === 'profit' ? `Ksh ${Math.round(chartBest.value).toLocaleString()}` : `${Number(chartBest.value.toFixed(0)).toLocaleString()} units`})</span>}
-                {chartWorst && <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm inline-block bg-red-500"></span> Lowest {metric === 'profit' ? 'Profit' : 'Qty'}: {chartWorst.label} ({metric === 'profit' ? `Ksh ${Math.round(chartWorst.value).toLocaleString()}` : `${Number(chartWorst.value.toFixed(0)).toLocaleString()} units`})</span>}
+                {chartBest && <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm inline-block bg-emerald-600"></span> Highest {metric === 'profit' ? 'Profit' : 'Qty'}: {chartBest.label} ({metric === 'profit' ? `Ksh ${Math.round(chartBest.value).toLocaleString()}` : `${Number((Number() || 0).toFixed(0)).toLocaleString()} units`})</span>}
+                {chartWorst && <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm inline-block bg-red-500"></span> Lowest {metric === 'profit' ? 'Profit' : 'Qty'}: {chartWorst.label} ({metric === 'profit' ? `Ksh ${Math.round(chartWorst.value).toLocaleString()}` : `${Number((Number() || 0).toFixed(0)).toLocaleString()} units`})</span>}
                 {monthlyData.length > 0 && <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm inline-block bg-blue-500"></span> Data from {monthlyData[0]?.label} to {monthlyData[monthlyData.length - 1]?.label}</span>}
               </div>
             )}
@@ -4202,7 +4202,7 @@ id,name,qty,barcode,date,cashierName
         const qty = soldMap[(p.name || '').toLowerCase()] || 0;
         if (qty >= 3 && p.stock <= lowStock) {
           out.push({
-            id: 'lowstock-' + p.id,
+            id: 'lowstock-' + (p && p.id),
             kind: 'lowstock',
             title: `${p.name} is selling fast & low in stock`,
             body: `Only ${p.stock} ${p.isCommodity ? p.unit : 'left'} â€” sold ${qty} in the last 30 days.`,
@@ -4219,7 +4219,7 @@ id,name,qty,barcode,date,cashierName
         const daysToExp = Math.floor((exp - now) / DAY);
         if (daysToExp <= 45) {
           out.push({
-            id: 'expiry-' + p.id + '-' + p.expiryDate,
+            id: 'expiry-' + (p && p.id) + '-' + p.expiryDate,
             kind: 'expiry',
             title: `${p.name} is near expiry`,
             body: `Expires ${p.expiryDate}${daysToExp < 0 ? ' (already expired)' : ` (${daysToExp} days)`}.`,
@@ -4318,13 +4318,13 @@ id,name,qty,barcode,date,cashierName
           // Update React state AND local IndexedDB with the new data from Turso
           if (data.settings && !Array.isArray(data.settings))   { if (setSettingsRaw) setSettingsRaw({ ...DEFAULT_SETTINGS, ...data.settings }); await saveDataToDB('settings', data.settings); }
           if (data.superAdminSettings && !Array.isArray(data.superAdminSettings)) { if (setSuperAdminSettingsRaw) setSuperAdminSettingsRaw({ ...DEFAULT_SUPER_ADMIN_SETTINGS, ...data.superAdminSettings }); await saveDataToDB('superAdminSettings', data.superAdminSettings); }
-          if (Array.isArray(data.products))     { setProducts(data.products);         await saveDataToDB('products', data.products); }
-          if (Array.isArray(data.salesHistory)) { setSalesHistory(data.salesHistory);  await saveDataToDB('salesHistory', data.salesHistory); const snaps = computeMonthlyAggregates(data.salesHistory); if (snaps.length > 0) { saveMonthlySnapshots(snaps).then(() => setMonthlySnapshots(snaps)); } }
-          if (Array.isArray(data.customers))    { setCustomers(data.customers);         await saveDataToDB('customers', data.customers); }
-          if (Array.isArray(data.debts))        { setDebts(data.debts);                 await saveDataToDB('debts', data.debts); }
-          if (Array.isArray(data.paidDebts))    { setPaidDebts(data.paidDebts);         await saveDataToDB('paidDebts', data.paidDebts); }
-          if (Array.isArray(data.expenses))     { setExpenses(data.expenses);           await saveDataToDB('expenses', data.expenses); }
-          if (Array.isArray(data.stockHistory)) { setStockHistory(data.stockHistory);   await saveDataToDB('stockHistory', data.stockHistory); }
+          if (Array.isArray(data.products))     { if (Array.isArray(data.products)) setProducts(data.products);         await saveDataToDB('products', data.products); }
+          if (Array.isArray(data.salesHistory)) { if (Array.isArray(data.salesHistory)) setSalesHistory(data.salesHistory);  await saveDataToDB('salesHistory', data.salesHistory); const snaps = computeMonthlyAggregates(data.salesHistory); if (snaps.length > 0) { saveMonthlySnapshots(snaps).then(() => setMonthlySnapshots(snaps)); } }
+          if (Array.isArray(data.customers))    { if (Array.isArray(data.customers)) setCustomers(data.customers);         await saveDataToDB('customers', data.customers); }
+          if (Array.isArray(data.debts))        { if (Array.isArray(data.debts)) setDebts(data.debts);                 await saveDataToDB('debts', data.debts); }
+          if (Array.isArray(data.paidDebts))    { if (Array.isArray(data.paidDebts)) setPaidDebts(data.paidDebts);         await saveDataToDB('paidDebts', data.paidDebts); }
+          if (Array.isArray(data.expenses))     { if (Array.isArray(data.expenses)) setExpenses(data.expenses);           await saveDataToDB('expenses', data.expenses); }
+          if (Array.isArray(data.stockHistory)) { if (Array.isArray(data.stockHistory)) setStockHistory(data.stockHistory);   await saveDataToDB('stockHistory', data.stockHistory); }
         };
 
         const interval = setInterval(async () => {
@@ -4424,7 +4424,7 @@ id,name,qty,barcode,date,cashierName
             doc.text(`Total Expenses: Ksh. ${expenses.reduce((a, b) => a + b.amount, 0).toLocaleString()}`, 14, 50);
             doc.text(`Pending Debts: Ksh. ${debts.reduce((a, b) => a + b.amount, 0).toLocaleString()}`, 14, 55);
 
-            autoTable(doc, { startY: 65, head: [['Barcode', 'Name', 'Price', 'Category', 'Cost', 'Stock', 'Expiry Date']], body: products.map(p => [p.barcode || '-', p.name, p.price, p.category, p.cost, p.stock, p.expiryDate || '-']), headStyles: { fillColor: '#059669' } });
+            autoTable(doc, { startY: 65, head: [['Barcode', 'Name', 'Price', 'Category', 'Cost', 'Stock', 'Expiry Date']], body: products.map(p => [p.barcode || '-', p.name, p.price, (p && p.category), p.cost, p.stock, p.expiryDate || '-']), headStyles: { fillColor: '#059669' } });
             autoTable(doc, { head: [['Date', 'Product', 'Qty', 'Total', 'Cashier']], body: salesHistory.map(s => [new Date(s.date).toLocaleDateString(), s.name, s.quantity, s.finalPrice, s.cashierName]), headStyles: { fillColor: '#059669' } });
             autoTable(doc, { head: [['Date', 'Description', 'Amount']], body: expenses.map(e => [e.date, e.desc, e.amount]), headStyles: { fillColor: '#059669' } });
             autoTable(doc, { head: [['Date', 'Customer', 'Items', 'Amount']], body: debts.map(d => [d.dateAdded, d.name, d.product, d.amount]), headStyles: { fillColor: '#059669' } });
@@ -4491,10 +4491,10 @@ id,name,qty,barcode,date,cashierName
         }
 
         // Update product stock if product still exists
-        const productToRestock = products.find(p => p.id === saleToCancel.productId);
+        const productToRestock = products.find(p => (p && p.id) === saleToCancel.productId);
         if (productToRestock) {
           const updatedProducts = products.map(p =>
-            p.id === saleToCancel.productId
+            (p && p.id) === saleToCancel.productId
               ? { ...p, stock: p.stock + saleToCancel.quantity }
               : p
           );
@@ -4521,14 +4521,14 @@ id,name,qty,barcode,date,cashierName
           quantitiesNeeded[item.productId] = (quantitiesNeeded[item.productId] || 0) + item.quantity;
         });
         for (const [prodId, qty] of Object.entries(quantitiesNeeded)) {
-          const product = tempProducts.find(p => p.id === prodId);
+          const product = tempProducts.find(p => (p && p.id) === prodId);
           if (!product) return toast.error("Product not found");
           if (product.stock < qty) return toast.error(`Not enough stock for ${product.name}. Need ${qty}, have ${product.stock}`);
         }
 
         // 2. Process Sales Sequentially
         cart.forEach(item => {
-          const pIndex = tempProducts.findIndex(p => p.id === item.productId);
+          const pIndex = tempProducts.findIndex(p => (p && p.id) === item.productId);
           const p = tempProducts[pIndex];
 
           const itemTotal = item.price * item.quantity;
@@ -4545,7 +4545,7 @@ id,name,qty,barcode,date,cashierName
 
           newSales.push({
             id: 'sale_' + Date.now() + '_' + item.cartId,
-            productId: p.id,
+            productId: (p && p.id),
             name: p.name,
             quantity: item.quantity,
             price: p.price,
@@ -4599,7 +4599,7 @@ id,name,qty,barcode,date,cashierName
         doc.text(`Total Expenses: Ksh. ${expenses.reduce((a, b) => a + b.amount, 0).toLocaleString()}`, 14, 50);
         doc.text(`Pending Debts: Ksh. ${debts.reduce((a, b) => a + b.amount, 0).toLocaleString()}`, 14, 55);
 
-        autoTable(doc, { startY: 65, head: [['Barcode', 'Name', 'Price', 'Category', 'Cost', 'Stock', 'Expiry Date']], body: products.map(p => [p.barcode || '-', p.name, p.price, p.category, p.cost, p.stock, p.expiryDate || '-']), headStyles: { fillColor: '#059669' } });
+        autoTable(doc, { startY: 65, head: [['Barcode', 'Name', 'Price', 'Category', 'Cost', 'Stock', 'Expiry Date']], body: products.map(p => [p.barcode || '-', p.name, p.price, (p && p.category), p.cost, p.stock, p.expiryDate || '-']), headStyles: { fillColor: '#059669' } });
         autoTable(doc, { head: [['Date', 'Product', 'Qty', 'Total', 'Cashier']], body: salesHistory.map(s => [new Date(s.date).toLocaleDateString(), s.name, s.quantity, s.finalPrice, s.cashierName]), headStyles: { fillColor: '#059669' } });
         autoTable(doc, { head: [['Date', 'Description', 'Amount']], body: expenses.map(e => [e.date, e.desc, e.amount]), headStyles: { fillColor: '#059669' } });
         autoTable(doc, { head: [['Date', 'Customer', 'Items', 'Amount']], body: debts.map(d => [d.dateAdded, d.name, d.product, d.amount]), headStyles: { fillColor: '#059669' } });
