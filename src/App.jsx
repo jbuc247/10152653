@@ -195,9 +195,13 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
     const tursoSync = async (key, data) => {
       try {
         const raw = localStorage.getItem('db_session');
-        if (!raw) return; // Not connected — skip silently
+        if (!raw) return false; // Not connected — skip silently
         const { url, token } = JSON.parse(raw);
-        if (!url || !token) return;
+        if (!url || !token) return false;
+        
+        localStorage.setItem('has_pending_sync', 'true');
+        if (!navigator.onLine) return false;
+
         const r = await fetch('/api/sync', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -206,9 +210,12 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
         if (r.ok) {
           // Stamp local write time so the polling loop doesn't re-download our own change
           sessionStorage.setItem('sb_last_local_write', String(Date.now()));
+          return true;
         }
+        return false;
       } catch (_) {
         // Swallow all errors — Turso sync must never crash the POS
+        return false;
       }
     };
 
@@ -216,13 +223,18 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
     const tursoSyncAll = async () => {
       try {
         const keys = ['products', 'salesHistory', 'customers', 'debts', 'paidDebts', 'expenses', 'stockHistory', 'settings', 'superAdminSettings'];
+        let successCount = 0;
         for (const k of keys) {
           let val = await loadDataFromDB(k);
           if (val === undefined || val === null) {
             // Default empty state for collections if they haven't been created yet
             val = (k === 'settings' || k === 'superAdminSettings') ? {} : [];
           }
-          await tursoSync(k, val);
+          const ok = await tursoSync(k, val);
+          if (ok) successCount++;
+        }
+        if (successCount === keys.length) {
+          localStorage.removeItem('has_pending_sync');
         }
       } catch (_) {
         // Silent
@@ -232,6 +244,9 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
     // Pull all data from Turso and overwrite local DB (used when connecting to existing DB)
     const tursoPullAll = async () => {
       try {
+        if (localStorage.getItem('has_pending_sync') === 'true') {
+          await tursoSyncAll();
+        }
         const raw = localStorage.getItem('db_session');
         if (!raw) return false;
         const { url, token } = JSON.parse(raw);
@@ -1238,8 +1253,8 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
       const [previewMode, setPreviewMode] = useState(false);
       const [previewData, setPreviewData] = useState([]);
 
-      const cats = [...new Set(products.map(p => (p && p.category)))].filter(Boolean).sort((a, b) => a.localeCompare(b));
-      const filteredForSelection = products.filter(p => (p.name || '').toLowerCase().includes(search.toLowerCase()) || (p.barcode && p.barcode.includes(search)));
+      const cats = useMemo(() => [...new Set(products.map(p => (p && p.category)))].filter(Boolean).sort((a, b) => a.localeCompare(b)), [products]);
+      const filteredForSelection = useMemo(() => products.filter(p => (p.name || '').toLowerCase().includes(search.toLowerCase()) || (p.barcode && p.barcode.includes(search))), [products, search]);
 
       const generatePreview = () => {
         let affected = [];
@@ -4348,6 +4363,10 @@ id,name,qty,barcode,date,cashierName
 
             // Step 3: if remote is newer than what we last saw, check if WE caused the change
             if (last_modified > lastSyncTsRef.current) {
+              if (localStorage.getItem('has_pending_sync') === 'true') {
+                await tursoSyncAll();
+                return;
+              }
               // Grace period: if this device wrote within the last 3 seconds, skip (it's our own write)
               const lastLocalWrite = Number(sessionStorage.getItem('sb_last_local_write') || 0);
               const msSinceLocalWrite = Date.now() - lastLocalWrite;
