@@ -247,6 +247,13 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
         if (localStorage.getItem('has_pending_sync') === 'true') {
           await tursoSyncAll();
         }
+
+        // CRITICAL FIX: If sync failed, do NOT pull data. Overwriting local data with old cloud data causes data loss!
+        if (localStorage.getItem('has_pending_sync') === 'true') {
+          console.warn("Sync failed, aborting pull to prevent local offline data from being overwritten.");
+          return false;
+        }
+
         const raw = localStorage.getItem('db_session');
         if (!raw) return false;
         const { url, token } = JSON.parse(raw);

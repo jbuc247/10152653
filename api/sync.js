@@ -79,8 +79,18 @@ export default async function handler(req, res) {
       }
     }
 
-    // Execute all deletes and inserts in one transaction
-    await client.batch(stmts, 'write');
+    // Execute all deletes and inserts in chunks using a transaction to avoid Turso batch limits
+    const tx = await client.transaction('write');
+    try {
+      const CHUNK_SIZE = 100;
+      for (let i = 0; i < stmts.length; i += CHUNK_SIZE) {
+        await tx.batch(stmts.slice(i, i + CHUNK_SIZE));
+      }
+      await tx.commit();
+    } catch (e) {
+      await tx.rollback();
+      throw e;
+    }
 
     // ✅ Update last_modified timestamp so polling devices detect the change instantly
     await client.execute(`CREATE TABLE IF NOT EXISTS meta (id INTEGER PRIMARY KEY, last_modified INTEGER NOT NULL DEFAULT 0)`);
