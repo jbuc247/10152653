@@ -64,42 +64,39 @@ export default async function handler(req, res) {
     } else {
       // It's an array of items
       if (Array.isArray(parsedData)) {
-        parsedData.forEach((item, index) => {
-          const id = String(item.id || item.date || index);
-          
-          if (key === 'users') {
-            stmts.push({ sql: `INSERT INTO users (id, firebase_uid, full_name, email, role, business_id, created_at, full_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, args: [id, item.firebase_uid||'', item.full_name||'', item.email||'', item.role||'', item.business_id||'', item.created_at||'', JSON.stringify(item)] });
-          } else if (key === 'products') {
-            stmts.push({ sql: `INSERT INTO products (id, name, price, costPrice, barcode, expiryDate, quantity, category, full_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, args: [id, item.name||'', item.price||0, item.costPrice||0, item.barcode||'', item.expiryDate||'', item.quantity||0, item.category||'', JSON.stringify(item)] });
-          } else if (key === 'salesHistory') {
-            stmts.push({ sql: `INSERT INTO salesHistory (id, date, total, full_json) VALUES (?, ?, ?, ?)`, args: [id, item.date||'', item.total||0, JSON.stringify(item)] });
-          } else if (key === 'customers') {
-            stmts.push({ sql: `INSERT INTO customers (id, name, phone, full_json) VALUES (?, ?, ?, ?)`, args: [id, item.name||'', item.phone||'', JSON.stringify(item)] });
-          } else if (key === 'debts') {
-            stmts.push({ sql: `INSERT INTO debts (id, customerName, amount, date, full_json) VALUES (?, ?, ?, ?, ?)`, args: [id, item.customerName||item.name||'', item.amount||0, item.date||'', JSON.stringify(item)] });
-          } else if (key === 'paidDebts') {
-            stmts.push({ sql: `INSERT INTO paidDebts (id, customerName, amount, date, full_json) VALUES (?, ?, ?, ?, ?)`, args: [id, item.customerName||item.name||'', item.amount||0, item.date||'', JSON.stringify(item)] });
-          } else if (key === 'expenses') {
-            stmts.push({ sql: `INSERT INTO expenses (id, category, amount, date, full_json) VALUES (?, ?, ?, ?, ?)`, args: [id, item.category||item.name||'', item.amount||0, item.date||'', JSON.stringify(item)] });
-          } else if (key === 'stockHistory') {
-            stmts.push({ sql: `INSERT INTO stockHistory (id, productName, addedQuantity, date, full_json) VALUES (?, ?, ?, ?, ?)`, args: [id, item.productName||'', item.addedQuantity||0, item.date||'', JSON.stringify(item)] });
+        const tableConfigs = {
+          users: { cols: ['id', 'firebase_uid', 'full_name', 'email', 'role', 'business_id', 'created_at', 'full_json'], getArgs: (item, id) => [id, item.firebase_uid||'', item.full_name||'', item.email||'', item.role||'', item.business_id||'', item.created_at||'', JSON.stringify(item)] },
+          products: { cols: ['id', 'name', 'price', 'costPrice', 'barcode', 'expiryDate', 'quantity', 'category', 'full_json'], getArgs: (item, id) => [id, item.name||'', item.price||0, item.costPrice||0, item.barcode||'', item.expiryDate||'', item.quantity||0, item.category||'', JSON.stringify(item)] },
+          salesHistory: { cols: ['id', 'date', 'total', 'full_json'], getArgs: (item, id) => [id, item.date||'', item.total||0, JSON.stringify(item)] },
+          customers: { cols: ['id', 'name', 'phone', 'full_json'], getArgs: (item, id) => [id, item.name||'', item.phone||'', JSON.stringify(item)] },
+          debts: { cols: ['id', 'customerName', 'amount', 'date', 'full_json'], getArgs: (item, id) => [id, item.customerName||item.name||'', item.amount||0, item.date||'', JSON.stringify(item)] },
+          paidDebts: { cols: ['id', 'customerName', 'amount', 'date', 'full_json'], getArgs: (item, id) => [id, item.customerName||item.name||'', item.amount||0, item.date||'', JSON.stringify(item)] },
+          expenses: { cols: ['id', 'category', 'amount', 'date', 'full_json'], getArgs: (item, id) => [id, item.category||item.name||'', item.amount||0, item.date||'', JSON.stringify(item)] },
+          stockHistory: { cols: ['id', 'productName', 'addedQuantity', 'date', 'full_json'], getArgs: (item, id) => [id, item.productName||'', item.addedQuantity||0, item.date||'', JSON.stringify(item)] }
+        };
+
+        const config = tableConfigs[key];
+        if (config) {
+          const BATCH_SIZE = 40; // 40 items per INSERT to stay within SQLite limits
+          for (let i = 0; i < parsedData.length; i += BATCH_SIZE) {
+            const chunk = parsedData.slice(i, i + BATCH_SIZE);
+            const placeholders = chunk.map(() => `(${config.cols.map(() => '?').join(', ')})`).join(', ');
+            const args = [];
+            chunk.forEach((item, idx) => {
+              const id = String(item.id || item.date || (i + idx));
+              args.push(...config.getArgs(item, id));
+            });
+            stmts.push({
+              sql: `INSERT INTO ${key} (${config.cols.join(', ')}) VALUES ${placeholders}`,
+              args
+            });
           }
-        });
+        }
       }
     }
 
-    // Execute all deletes and inserts in chunks using a transaction to avoid Turso batch limits
-    const tx = await client.transaction('write');
-    try {
-      const CHUNK_SIZE = 100;
-      for (let i = 0; i < stmts.length; i += CHUNK_SIZE) {
-        await tx.batch(stmts.slice(i, i + CHUNK_SIZE));
-      }
-      await tx.commit();
-    } catch (e) {
-      await tx.rollback();
-      throw e;
-    }
+    // Execute all deletes and bulk inserts atomically in one server-side transaction
+    await client.batch(stmts, 'write');
 
     // ✅ Update last_modified timestamp so polling devices detect the change instantly
     await client.execute(`CREATE TABLE IF NOT EXISTS meta (id INTEGER PRIMARY KEY, last_modified INTEGER NOT NULL DEFAULT 0)`);
