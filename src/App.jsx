@@ -2442,20 +2442,30 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
           return;
         }
 
+        const today = new Date().toLocaleDateString('en-GB');
         doc.setFontSize(16);
-        doc.text(`Products Sheet`, 14, 15);
+        doc.text(settings.name || 'Products Sheet', 14, 15);
+        doc.setFontSize(10);
+        doc.setTextColor(120);
+        doc.text(`Stock Filling Sheet — ${today}`, 14, 22);
+        doc.setTextColor(0);
         
         autoTable(doc, {
-          startY: 20,
-          head: [['Name', 'Category', 'Barcode', 'Expiry', 'Price', 'Cost']],
-          body: products.map(p => [p.name || '', p.category || '-', p.barcode || '-', p.expiryDate || '-', '', '']),
+          startY: 28,
+          head: [['Name', 'Category', 'Barcode', 'Stock (fill)', 'Cost (fill)', 'Price (fill)']],
+          body: products.map(p => [p.name || '', p.category || '-', p.barcode || '-', '', '', '']),
           theme: 'grid',
-          styles: { fontSize: 9, cellPadding: 2, minCellHeight: 10 },
+          styles: { fontSize: 9, cellPadding: 3, minCellHeight: 12 },
           headStyles: { fillColor: [16, 185, 129] },
+          columnStyles: {
+            3: { cellWidth: 28 },
+            4: { cellWidth: 28 },
+            5: { cellWidth: 28 },
+          },
         });
         
-        doc.save(`Products_Sheet_${new Date().toISOString().split('T')[0]}.pdf`);
-        toast.success("PDF Generated Successfully!");
+        doc.save(`Stock_Filling_Sheet_${new Date().toISOString().split('T')[0]}.pdf`);
+        toast.success("Stock Filling Sheet downloaded!");
       };
 
       const clear = (type) => { if (confirm(`Clear all ${type} history? This cannot be undone.`)) { if (type === 'sales') setSalesHistory([]); if (type === 'stock') setStockHistory([]); toast.success('Cleared'); } };
@@ -2548,7 +2558,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
           <button onClick={() => setView('sales')} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 rounded-xl shadow-lg shadow-emerald-100 font-medium"><FileText className="w-5 h-5" /> View Sales History</button>
           <button onClick={() => setView('stock')} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl shadow-lg shadow-blue-100 font-medium"><ClipboardList className="w-5 h-5" /> View Stock History</button>
           <button onClick={generateProductPdf} className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-5 py-3 rounded-xl shadow-lg shadow-purple-100 font-medium"><FileText className="w-5 h-5" /> Print Stock Sheet</button>
-          <button onClick={generateBlankProductPdf} className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-xl shadow-lg shadow-indigo-100 font-medium"><Download className="w-5 h-5" /> Download Products PDF</button>
+          <button onClick={generateBlankProductPdf} className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-xl shadow-lg shadow-indigo-100 font-medium"><Download className="w-5 h-5" /> Stock Filling Sheet</button>
         </div>
         {view === 'sales' && (<HistoryModal title="Sales History" searchVal={salesSearch} onSearchChange={setSalesSearch} dateRange={salesDateRange} onDateChange={setSalesDateRange} onClose={() => setView('none')} onClear={() => clear('sales')} canDelete={currentUser?.role === 'owner'}><table className="w-full text-sm text-left"><thead className="bg-slate-50 text-slate-500 font-medium sticky top-0"><tr><th className="p-3">Date</th><th className="p-3">Product</th><th className="p-3">Qty</th><th className="p-3">Method</th><th className="p-3">Cashier</th><th className="p-3 text-right">Discount</th><th className="p-3 text-right">Total</th>{currentUser?.role === 'owner' && <th className="p-3 text-right">Action</th>}</tr></thead><tbody className="divide-y divide-slate-100">{filteredSales.slice((salesCurrentPage - 1) * 50, salesCurrentPage * 50).map(s => <tr key={s.id} className="hover:bg-slate-50"><td className="p-3 text-slate-500">{new Date(s.date).toLocaleString()}</td><td className="p-3 font-medium text-slate-800">{s.name}</td><td className="p-3">{s.quantity}</td><td className="p-3 uppercase text-xs font-bold text-slate-500">{s.paymentMethod}</td><td className="p-3 text-slate-500">{s.cashierName}</td><td className="p-3 text-right font-medium text-red-500">{s.discount?.value > 0 ? (s.discount?.type === 'percent' ? `${s.discount.value}%` : `Ksh. ${parseFloat(s.discount.value).toLocaleString()}`) : '-'}</td><td className="p-3 text-right font-bold text-emerald-600">Ksh. {(s.finalPrice).toLocaleString()}</td>{currentUser?.role === 'owner' && (<td className="p-3 text-right"><button onClick={() => onCancelSale(s.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg disabled:text-slate-300 disabled:hover:bg-transparent" title="Cancel Sale" disabled={s.paymentMethod === 'debt'}><Trash2 className="w-4 h-4" /></button></td>)}</tr>)}</tbody></table><Pagination totalItems={filteredSales.length} itemsPerPage={50} currentPage={salesCurrentPage} setCurrentPage={setSalesCurrentPage} /></HistoryModal>)}
         {view === 'stock' && (<HistoryModal title="Stock History" searchVal={stockSearch} onSearchChange={setStockSearch} dateRange={stockDateRange} onDateChange={setStockDateRange} onClose={() => setView('none')} onClear={() => clear('stock')}><table className="w-full text-sm text-left"><thead className="bg-slate-50 text-slate-500 font-medium sticky top-0"><tr><th className="p-3">Date</th><th className="p-3">Product</th><th className="p-3">Added by</th><th className="p-3 text-right">Qty Added</th></tr></thead><tbody className="divide-y divide-slate-100">{filteredStock.slice((stockCurrentPage - 1) * 50, stockCurrentPage * 50).map((s, i) => <tr key={i} className="hover:bg-slate-50"><td className="p-3 text-slate-500">{new Date(s.date).toLocaleString()}</td><td className="p-3 font-medium text-slate-800">{s.name}</td><td className="p-3 text-slate-500">{s.cashierName}</td><td className="p-3 text-right font-bold text-blue-600">+{s.qty}</td></tr>)}</tbody></table><Pagination totalItems={filteredStock.length} itemsPerPage={50} currentPage={stockCurrentPage} setCurrentPage={setStockCurrentPage} /></HistoryModal>)}</div>);
@@ -4737,19 +4747,29 @@ id,name,qty,barcode,date,cashierName
           </nav>
           <div className="p-4 border-t border-slate-100 space-y-2">{notifEnabled && <button onClick={() => setShowNotif(true)} className="flex items-center gap-3 w-full p-3 text-slate-500 hover:bg-slate-50 hover:text-slate-800 rounded-lg transition-colors relative"><Bell className="w-5 h-5" /> Notifications {unreadNotifCount > 0 && <span className="ml-auto bg-rose-500 text-white text-[10px] font-bold rounded-full min-w-[20px] h-5 px-1.5 flex items-center justify-center">{unreadNotifCount}</span>}</button>}<button onClick={() => setShowCalc(!showCalc)} className="flex items-center gap-3 w-full p-3 text-slate-500 hover:bg-slate-50 hover:text-slate-800 rounded-lg transition-colors"><CalcIcon className="w-5 h-5" /> Calculator</button><button onClick={onLogout} className="flex items-center gap-3 w-full p-3 text-red-500 hover:bg-red-50 rounded-lg mt-1 transition-colors"><LogOut className="w-5 h-5" /> Logout</button></div>
         </aside>
-        <div className="md:hidden fixed bottom-0 left-0 right-0 w-full bg-white border-t border-slate-200 flex justify-around p-2 z-40 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">{['products', 'customers', 'debts', 'expenses', 'summary', 'settings'].map(t => canView(t) && (<button key={t} onClick={() => setTab(t)} className={`p-2 rounded-lg ${tab === t ? 'text-emerald-600 bg-emerald-50' : 'text-slate-400'}`}>
-          {t === 'products' ? <Package className="w-6 h-6" /> :
-            t === 'customers' ? <UserPlus className="w-6 h-6" /> :
-              t === 'debts' ? <Users className="w-6 h-6" /> :
-                t === 'expenses' ? <DollarSign className="w-6 h-6" /> :
-                  t === 'suppliers' ? <Truck className="w-6 h-6" /> :
-                    t === 'stockHistory' ? <ClipboardList className="w-6 h-6" /> :
-                      t === 'summary' ? <PieChart className="w-6 h-6" /> :
-                        t === 'forecast' ? <TrendingUp className="w-6 h-6" /> :
-                          t === 'monthlyPerformance' ? <BarChart className="w-6 h-6" /> :
-                            t === 'cashierSalesHistory' ? <FileText className="w-6 h-6" /> :
-                              <SettingsIcon className="w-6 h-6" />}<span style={{fontSize:"10px",marginTop:"2px",fontWeight:600}}>{({products:"Products",customers:"Customers",debts:"Debts",expenses:"Expenses",suppliers:"Suppliers",stockHistory:"Stock",summary:"Reports",forecast:"Forecast",monthlyPerformance:"Monthly",cashierSalesHistory:"Sales",settings:"Settings",cashierSettings:"Settings"})[t]}</span>
-        </button>))}</div>
+        <div className="md:hidden fixed bottom-0 left-0 right-0 w-full bg-white border-t border-slate-200 flex justify-around p-2 z-40 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">{[
+            {k:'products', label:'Products', Icon: Package},
+            {k:'customers', label:'Customers', Icon: UserPlus},
+            {k:'debts', label:'Debts', Icon: Users},
+            {k:'expenses', label:'Expenses', Icon: DollarSign},
+            {k:'suppliers', label:'Suppliers', Icon: Truck},
+            {k:'stockHistory', label:'Stock', Icon: ClipboardList},
+            {k:'summary', label:'Reports', Icon: PieChart, ownerOnly:true},
+            {k:'forecast', label:'Forecast', Icon: TrendingUp, ownerOnly:true},
+            {k:'staffProfiles', label:'Staff', Icon: Users, ownerOnly:true},
+            {k:'monthlyPerformance', label:'Monthly', Icon: BarChart, ownerOnly:true},
+            {k:'cashierSalesHistory', label:'Sales', Icon: FileText, cashierOnly:true},
+            {k:'settings', label:'Settings', Icon: SettingsIcon, ownerOnly:true},
+            {k:'cashierSettings', label:'Settings', Icon: SettingsIcon, cashierOnly:true},
+          ].filter(it => {
+            if (it.ownerOnly) return effectiveCurrentUser?.role === 'owner';
+            if (it.cashierOnly) return effectiveCurrentUser?.role === 'cashier';
+            return canView(it.k);
+          }).map(({k, label, Icon}) => (
+          <button key={k} onClick={() => setTab(k)} className={`flex flex-col items-center p-2 rounded-lg ${tab === k ? 'text-emerald-600 bg-emerald-50' : 'text-slate-400'}`}>
+            <Icon className="w-6 h-6" /><span style={{fontSize:"10px",marginTop:"2px",fontWeight:600}}>{label}</span>
+          </button>
+          ))}</div>
         {showMenu && (
           <div className="fixed inset-0 z-50 flex" onClick={() => setShowMenu(false)}>
             <div className="absolute inset-0 bg-black/40" />
