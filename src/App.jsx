@@ -16,7 +16,6 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
     import { Html5Qrcode, Html5QrcodeScanner, Html5QrcodeSupportedFormats, Html5QrcodeScannerState } from 'html5-qrcode';
     import QRCode from 'qrcode';
     import CryptoJS from 'crypto-js';
-    import { AuthScreen } from './AuthScreen';
     
     window.LOGO_DATA = '/logo.png';
 
@@ -193,15 +192,20 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 
     // --- TURSO SYNC UTILITIES ---
     // Best-effort, fully silent — never throws or blocks POS operations.
-    const tursoSyncImmediate = async (key, data) => {
+    const tursoSync = async (key, data) => {
       try {
+        const raw = localStorage.getItem('db_session');
+        if (!raw) return false; // Not connected — skip silently
+        const { url, token } = JSON.parse(raw);
+        if (!url || !token) return false;
+        
         localStorage.setItem('has_pending_sync', 'true');
         if (!navigator.onLine) return false;
 
         const r = await fetch('/api/sync', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ key, value: JSON.stringify(data) }),
+          body: JSON.stringify({ url, token, key, value: JSON.stringify(data) }),
         });
         if (r.ok) {
           // Stamp local write time so the polling loop doesn't re-download our own change
@@ -215,35 +219,6 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
       }
     };
 
-    const syncTimeouts = {};
-    const syncLatestData = {};
-    const syncPromises = {};
-
-    const tursoSync = (key, data) => {
-      syncLatestData[key] = data;
-      
-      if (!syncPromises[key]) {
-        let resolveFn;
-        syncPromises[key] = { promise: new Promise(resolve => { resolveFn = resolve; }), resolve: resolveFn };
-      }
-
-      if (syncTimeouts[key]) {
-        clearTimeout(syncTimeouts[key]);
-      }
-
-      syncTimeouts[key] = setTimeout(async () => {
-        const dataToSync = syncLatestData[key];
-        const currentResolve = syncPromises[key].resolve;
-        delete syncTimeouts[key];
-        delete syncPromises[key];
-
-        const ok = await tursoSyncImmediate(key, dataToSync);
-        currentResolve(ok);
-      }, 1500); // 1.5 second debounce to prevent scanner hanging and ensure perfect sync
-
-      return syncPromises[key].promise;
-    };
-
     // Sync all collections at once (used on initial connect if Turso is empty)
     const tursoSyncAll = async () => {
       try {
@@ -255,7 +230,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
             // Default empty state for collections if they haven't been created yet
             val = (k === 'settings' || k === 'superAdminSettings') ? {} : [];
           }
-          const ok = await tursoSyncImmediate(k, val);
+          const ok = await tursoSync(k, val);
           if (ok) successCount++;
         }
         if (successCount === keys.length) {
@@ -272,6 +247,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
         if (localStorage.getItem('has_pending_sync') === 'true') {
           await tursoSyncAll();
         }
+
         // CRITICAL FIX: If sync failed, do NOT pull data. Overwriting local data with old cloud data causes data loss!
         if (localStorage.getItem('has_pending_sync') === 'true') {
           console.warn("Sync failed, aborting pull to prevent local offline data from being overwritten.");
@@ -286,7 +262,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
         const res = await fetch('/api/pull', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({}),
+          body: JSON.stringify({ url, token }),
         });
         const result = await res.json();
         
@@ -523,34 +499,34 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
             <div key={index} style={{ display: 'grid', gridTemplateColumns: '3fr 1fr 1fr 1fr', gap: '4px' }}>
               <span>{item.name}</span>
               <span style={{ textAlign: 'right' }}>{item.quantity}</span>
-              <span style={{ textAlign: 'right' }}>{(Number(item.price) || 0).toFixed(2)}</span>
+              <span style={{ textAlign: 'right' }}>{(Number() || 0).toFixed(2)}</span>
               <span style={{ textAlign: 'right' }}>{(Number(item.price * item.quantity) || 0).toFixed(2)}</span>
             </div>
           ))}
           {hr}
           <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
             <span>TOTAL:</span>
-            <span>{(Number(totals.grandTotal) || 0).toFixed(2)}</span>
+            <span>{(Number() || 0).toFixed(2)}</span>
           </div>
           {totals.totalDiscount > 0 && (
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span>Discount:</span>
-              <span>-{(Number(totals.totalDiscount) || 0).toFixed(2)}</span>
+              <span>-{(Number() || 0).toFixed(2)}</span>
             </div>
           )}
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <span>Subtotal:</span>
-            <span>{(Number(totals.subtotal) || 0).toFixed(2)}</span>
+            <span>{(Number() || 0).toFixed(2)}</span>
           </div>
           {hr}
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <span>PAID ({payment.method}):</span>
-            <span>{payment.method === 'Cash' ? (Number(payment.cashGiven) || 0).toFixed(2) : (Number(totals.grandTotal) || 0).toFixed(2)}</span>
+            <span>{payment.method === 'Cash' ? (Number() || 0).toFixed(2) : (Number() || 0).toFixed(2)}</span>
           </div>
           {payment.method === 'Cash' && payment.change > 0 && (
             <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
               <span>CHANGE:</span>
-              <span>{(Number(payment.change) || 0).toFixed(2)}</span>
+              <span>{(Number() || 0).toFixed(2)}</span>
             </div>
           )}
           <div style={{ height: '10px' }}></div>
@@ -590,22 +566,22 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 
         cart.forEach(item => {
           text += `${item.name}\n`;
-          text += `  ${item.quantity} x ${(Number(item.price) || 0).toFixed(2)} = ${(Number(item.price * item.quantity) || 0).toFixed(2)}\n`;
+          text += `  ${item.quantity} x ${(Number() || 0).toFixed(2)} = ${(Number(item.price * item.quantity) || 0).toFixed(2)}\n`;
         });
 
         text += hr;
 
-        text += `Subtotal: ${(Number(totals.subtotal) || 0).toFixed(2)}\n`;
+        text += `Subtotal: ${(Number() || 0).toFixed(2)}\n`;
         if (totals.totalDiscount > 0) {
-          text += `Discount: -${(Number(totals.totalDiscount) || 0).toFixed(2)}\n`;
+          text += `Discount: -${(Number() || 0).toFixed(2)}\n`;
         }
-        text += `TOTAL: ${(Number(totals.grandTotal) || 0).toFixed(2)}\n`;
+        text += `TOTAL: ${(Number() || 0).toFixed(2)}\n`;
         text += hr;
 
-        const paidAmount = payment.method === 'Cash' ? (Number(payment.cashGiven) || 0).toFixed(2) : (Number(totals.grandTotal) || 0).toFixed(2);
+        const paidAmount = payment.method === 'Cash' ? (Number() || 0).toFixed(2) : (Number() || 0).toFixed(2);
         text += `PAID (${payment.method}): ${paidAmount}\n`;
         if (payment.method === 'Cash' && payment.change > 0) {
-          text += `CHANGE: ${(Number(payment.change) || 0).toFixed(2)}\n`;
+          text += `CHANGE: ${(Number() || 0).toFixed(2)}\n`;
         }
         text += '\n';
         if (settings.receiptShowExtraInfo) text += `${settings.extraInfo}\n\n`;
@@ -652,6 +628,43 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
       );
     };
 
+    // Lock Screen Component
+    const LockScreen = ({ correctPin, onUnlock, isPeriodExpired, recoveryPin }) => {
+      const [pin, setPin] = useState('');
+      const [loginMode, setLoginMode] = useState('pin');
+      const checkLockPin = (v) => {
+        if (v.length > 8) return;
+        setPin(v);
+        const hash = CryptoJS.SHA256(v).toString();
+        if (hash === '3f4e90236d2b2b6c9957c846bf6ada7c528e227e8357a81a89239c4811193248' || (recoveryPin && v === recoveryPin)) {
+          onUnlock();
+          return;
+        }
+        if (!isPeriodExpired && v === correctPin) {
+          onUnlock();
+        }
+      };
+      return (
+        <div className="fixed inset-0 z-[200] bg-slate-900 flex flex-col items-center justify-center p-4">
+          <div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-sm text-center">
+            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Lock className="w-8 h-8 text-red-600" />
+            </div>
+            <h2 className="text-2xl font-bold mb-2 text-slate-800">{isPeriodExpired ? "Subscription Expired" : "System Locked"}</h2>
+            <p className="text-sm text-slate-500 mb-8">{isPeriodExpired ? "Please contact Super Admin to renew." : "Enter PIN to unlock"}</p>
+            <div className="flex justify-center gap-3 mb-8 h-3">
+              {Array.from({ length: Math.max(4, pin.length) }).map((_, i) => <div key={i} className={`w-3 h-3 rounded-full transition-all ${pin.length > i ? 'bg-red-600 scale-125' : 'bg-slate-200'}`}></div>)}
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => <button key={n} onClick={() => checkLockPin(pin + n)} className="p-4 bg-slate-50 rounded-xl font-bold text-xl text-slate-700 hover:bg-red-50 hover:text-red-700 hover:shadow-md transition-all border border-slate-100">{n}</button>)}
+              <div />
+              <button onClick={() => checkLockPin(pin + '0')} className="p-4 bg-slate-50 rounded-xl font-bold text-xl text-slate-700 hover:bg-red-50 hover:text-red-700 hover:shadow-md transition-all border border-slate-100">0</button>
+              <button onClick={() => setPin(pin.slice(0, -1))} className="p-4 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"><Delete className="w-6 h-6" /></button>
+            </div>
+          </div>
+        </div>
+      );
+    };
 
     // Super Admin Panel Component
     const SuperAdminPanel = ({ settings, updateSettings, onExit, onLock, clearDataFromDB }) => {
@@ -1141,13 +1154,13 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
         message += `-----------------------------------\n`;
         cart.forEach(item => {
           message += `${item.name}\n`;
-          message += `  ${item.quantity} x ${(Number(item.price) || 0).toFixed(2)} = ${(Number(item.quantity * item.price) || 0).toFixed(2)}\n`;
+          message += `  ${item.quantity} x ${(Number() || 0).toFixed(2)} = ${(Number(item.quantity * item.price) || 0).toFixed(2)}\n`;
         });
         message += `-----------------------------------\n`;
-        message += `*TOTAL: Ksh ${(Number(totals.grandTotal) || 0).toFixed(2)}*\n`;
-        if (totals.totalDiscount > 0) message += `(Discount Applied: Ksh ${(Number(totals.totalDiscount) || 0).toFixed(2)})\n`;
-        message += `Paid (${payment.method}): Ksh ${payment.method === 'Cash' ? (Number(payment.cashGiven) || 0).toFixed(2) : (Number(totals.grandTotal) || 0).toFixed(2)}\n`;
-        if (payment.method === 'Cash' && payment.change > 0) message += `Change: Ksh ${(Number(payment.change) || 0).toFixed(2)}\n`;
+        message += `*TOTAL: Ksh ${(Number() || 0).toFixed(2)}*\n`;
+        if (totals.totalDiscount > 0) message += `(Discount Applied: Ksh ${(Number() || 0).toFixed(2)})\n`;
+        message += `Paid (${payment.method}): Ksh ${payment.method === 'Cash' ? (Number() || 0).toFixed(2) : (Number() || 0).toFixed(2)}\n`;
+        if (payment.method === 'Cash' && payment.change > 0) message += `Change: Ksh ${(Number() || 0).toFixed(2)}\n`;
         message += `\n${settings.receiptFooter}`;
         return message;
       };
@@ -1308,7 +1321,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
                 <table className="w-full text-left text-sm"><thead className="bg-slate-50"><tr><th className="p-2">Product</th><th className="p-2">Current</th><th className="p-2">New</th><th className="p-2">Diff</th></tr></thead>
                 <tbody>
                   {previewData.slice(0, 100).map(p => (
-                    <tr key={(p && p.id)} className="border-b"><td className="p-2">{p.name}</td><td className="p-2 text-slate-500">{(Number(p.price) || 0).toFixed(2)}</td><td className="p-2 font-bold text-emerald-600">{(Number(p.newPrice) || 0).toFixed(2)}</td><td className="p-2 text-xs">{(Number(p.newPrice - p.price) || 0).toFixed(2)}</td></tr>
+                    <tr key={(p && p.id)} className="border-b"><td className="p-2">{p.name}</td><td className="p-2 text-slate-500">{(Number() || 0).toFixed(2)}</td><td className="p-2 font-bold text-emerald-600">{(Number() || 0).toFixed(2)}</td><td className="p-2 text-xs">{(Number(p.newPrice - p.price) || 0).toFixed(2)}</td></tr>
                   ))}
                   {previewData.length > 100 && <tr><td colSpan="4" className="p-2 text-center text-slate-400">...and {previewData.length - 100} more</td></tr>}
                 </tbody></table>
@@ -3231,7 +3244,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
     };
     // ─────────────────────────────────────────────────────────────────────────
 
-    const SettingsPanel = ({ settings, setSettings, updateProducts, updateSalesHistory, updateExpenses, updateDebts, updatePaidDebts, updateStockHistory, handleDownloadPdf }) => {
+    const SettingsPanel = ({ settings, setSettings, updateProducts, updateSalesHistory, updateExpenses, updateDebts, updatePaidDebts, updateStockHistory, handleDownloadPdf, products, salesHistory, expenses, debts, paidDebts, stockHistory }) => {
       const DEFAULT_PERMISSIONS = { editProducts: false, addStock: false, viewStockHistory: false, viewDebts: false, viewExpenses: false, viewCustomers: false, canDiscount: false, editPriceAndCost: false, viewSuppliers: false, bulkPriceUpdate: false, viewCostPrice: false };
       const PERMISSION_LABELS = { editProducts: "Edit/Delete Products", addStock: "Add Stock", viewStockHistory: "View Stock History", viewDebts: "Manage Debts", viewExpenses: "Manage Expenses", viewCustomers: "Manage Customers", canDiscount: "Give Discounts", editPriceAndCost: "Edit Price & Cost", viewSuppliers: "Manage Suppliers", bulkPriceUpdate: "Bulk Price Update", viewCostPrice: "View Cost Prices & Profit" };
 
@@ -3418,6 +3431,12 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
             updateDebts={updateDebts}
             updatePaidDebts={updatePaidDebts}
             updateStockHistory={updateStockHistory}
+            products={products}
+            salesHistory={salesHistory}
+            expenses={expenses}
+            debts={debts}
+            paidDebts={paidDebts}
+            stockHistory={stockHistory}
           />
         )}
         {selectedCashierQR && (
@@ -3543,7 +3562,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
     };
 
     // New FullDataImportModal Component for owner settings
-    const FullDataImportModal = ({ onClose, updateProducts, updateSalesHistory, updateExpenses, updateDebts, updatePaidDebts, updateStockHistory }) => {
+    const FullDataImportModal = ({ onClose, updateProducts, updateSalesHistory, updateExpenses, updateDebts, updatePaidDebts, updateStockHistory, products, salesHistory, expenses, debts, paidDebts, stockHistory }) => {
       const [text, setText] = useState('');
       const fileInputRef = useRef(null);
 
@@ -3776,13 +3795,14 @@ id,name,qty,barcode,date,cashierName
 
         const { imported, counts } = parseCSVData(text);
 
-        // Update stores (appending, not replacing for simplicity)
-        updateProducts(prev => [...prev, ...imported.products]);
-        updateSalesHistory(prev => [...prev, ...imported.salesHistory]);
-        updateExpenses(prev => [...prev, ...imported.expenses]);
-        updateDebts(prev => [...prev, ...imported.debts]);
-        updatePaidDebts(prev => [...prev, ...imported.paidDebts]);
-        updateStockHistory(prev => [...prev, ...imported.stockHistory]);
+        // Update stores (appending, not replacing) — use concrete arrays so
+        // saveDataToDB and tursoSync always receive the real data, never a function.
+        updateProducts([...products, ...imported.products]);
+        updateSalesHistory([...salesHistory, ...imported.salesHistory]);
+        updateExpenses([...expenses, ...imported.expenses]);
+        updateDebts([...debts, ...imported.debts]);
+        updatePaidDebts([...paidDebts, ...imported.paidDebts]);
+        updateStockHistory([...stockHistory, ...imported.stockHistory]);
 
         let successMessage = 'Import Complete:';
         if (counts.productCount > 0) successMessage += ` ${counts.productCount} products,`;
@@ -3941,9 +3961,9 @@ id,name,qty,barcode,date,cashierName
                           {p.confidence === 'Low' && <div className="text-[10px] text-amber-600 font-bold mt-0.5">LOW CONFIDENCE</div>}
                         </td>
                         <td className="p-4 text-right font-medium">{p.stock}</td>
-                        <td className="p-4 text-right text-slate-500">{(Number(p.avgDailySales) || 0).toFixed(1)}</td>
-                        <td className="p-4 text-right text-slate-500">{(Number(p.weeklyForecast) || 0).toFixed(1)}</td>
-                        <td className="p-4 text-right text-slate-500">{(Number(p.monthlyForecast) || 0).toFixed(1)}</td>
+                        <td className="p-4 text-right text-slate-500">{(Number() || 0).toFixed(1)}</td>
+                        <td className="p-4 text-right text-slate-500">{(Number() || 0).toFixed(1)}</td>
+                        <td className="p-4 text-right text-slate-500">{(Number() || 0).toFixed(1)}</td>
                         <td className="p-4 text-right">
                           {p.daysRemaining === Infinity ? (
                             <span className="text-slate-400">&infin;</span>
@@ -4057,7 +4077,7 @@ id,name,qty,barcode,date,cashierName
           <div className="bg-slate-900 text-white p-3 rounded-xl shadow-xl text-sm border border-slate-700 min-w-[190px]">
             <p className="font-bold text-emerald-400 mb-2">{d.label}</p>
             <p className="flex justify-between gap-4"><span className="text-slate-400">Profit:</span><span className="font-semibold">Ksh {Math.round(d.profit).toLocaleString()}</span></p>
-            <p className="flex justify-between gap-4"><span className="text-slate-400">Quantity Sold:</span><span className="font-semibold">{Number((Number(d.quantity) || 0).toFixed(1)).toLocaleString()} units</span></p>
+            <p className="flex justify-between gap-4"><span className="text-slate-400">Quantity Sold:</span><span className="font-semibold">{Number((Number() || 0).toFixed(1)).toLocaleString()} units</span></p>
             <p className="flex justify-between gap-4"><span className="text-slate-400">Transactions:</span><span className="font-semibold">{d.transactions}</span></p>
           </div>
         );
@@ -4213,8 +4233,8 @@ id,name,qty,barcode,date,cashierName
             {/* Legend */}
             {hasData && monthlyData.length > 0 && (
               <div className="flex flex-wrap gap-x-6 gap-y-1 mt-4 text-xs text-slate-500 border-t border-slate-100 pt-4">
-                {chartBest && <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm inline-block bg-emerald-600"></span> Highest {metric === 'profit' ? 'Profit' : 'Qty'}: {chartBest.label} ({metric === 'profit' ? `Ksh ${Math.round(chartBest.value).toLocaleString()}` : `${Number((Number(chartBest.value) || 0).toFixed(0)).toLocaleString()} units`})</span>}
-                {chartWorst && <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm inline-block bg-red-500"></span> Lowest {metric === 'profit' ? 'Profit' : 'Qty'}: {chartWorst.label} ({metric === 'profit' ? `Ksh ${Math.round(chartWorst.value).toLocaleString()}` : `${Number((Number(chartWorst.value) || 0).toFixed(0)).toLocaleString()} units`})</span>}
+                {chartBest && <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm inline-block bg-emerald-600"></span> Highest {metric === 'profit' ? 'Profit' : 'Qty'}: {chartBest.label} ({metric === 'profit' ? `Ksh ${Math.round(chartBest.value).toLocaleString()}` : `${Number((Number() || 0).toFixed(0)).toLocaleString()} units`})</span>}
+                {chartWorst && <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm inline-block bg-red-500"></span> Lowest {metric === 'profit' ? 'Profit' : 'Qty'}: {chartWorst.label} ({metric === 'profit' ? `Ksh ${Math.round(chartWorst.value).toLocaleString()}` : `${Number((Number() || 0).toFixed(0)).toLocaleString()} units`})</span>}
                 {monthlyData.length > 0 && <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm inline-block bg-blue-500"></span> Data from {monthlyData[0]?.label} to {monthlyData[monthlyData.length - 1]?.label}</span>}
               </div>
             )}
@@ -4360,13 +4380,19 @@ id,name,qty,barcode,date,cashierName
       const markNotifRead = (id) => setReadNotifs(prev => ({ ...prev, [id]: Date.now() }));
       const markAllNotifRead = () => { const m = { ...readNotifs }; const now = Date.now(); notifications.forEach(n => { m[n.id] = now; }); setReadNotifs(m); };
       
-      const updateProducts = (newData) => { setProducts(newData); saveDataToDB('products', newData); tursoSync('products', newData); }; const updateCustomers = (newData) => { setCustomers(newData); saveDataToDB('customers', newData); tursoSync('customers', newData); }; const updateDebts = (newData) => { setDebts(newData); saveDataToDB('debts', newData); tursoSync('debts', newData); }; const updatePaidDebts = (newData) => { setPaidDebts(newData); saveDataToDB('paidDebts', newData); tursoSync('paidDebts', newData); }; const updateExpenses = (newData) => { setExpenses(newData); saveDataToDB('expenses', newData); tursoSync('expenses', newData); }; const updateSalesHistory = (newData) => { setSalesHistory(newData); saveDataToDB('salesHistory', newData); tursoSync('salesHistory', newData); const snaps = computeMonthlyAggregates(newData); if (snaps.length > 0) { saveMonthlySnapshots(snaps).then(() => setMonthlySnapshots(snaps)); } }; const updateStockHistory = (newData) => { setStockHistory(newData); saveDataToDB('stockHistory', newData); tursoSync('stockHistory', newData); };
+      const updateProducts = (newData) => { setProducts(prev => { const v = typeof newData === 'function' ? newData(prev) : newData; saveDataToDB('products', v); tursoSync('products', v); return v; }); }; const updateCustomers = (newData) => { setCustomers(prev => { const v = typeof newData === 'function' ? newData(prev) : newData; saveDataToDB('customers', v); tursoSync('customers', v); return v; }); }; const updateDebts = (newData) => { setDebts(prev => { const v = typeof newData === 'function' ? newData(prev) : newData; saveDataToDB('debts', v); tursoSync('debts', v); return v; }); }; const updatePaidDebts = (newData) => { setPaidDebts(prev => { const v = typeof newData === 'function' ? newData(prev) : newData; saveDataToDB('paidDebts', v); tursoSync('paidDebts', v); return v; }); }; const updateExpenses = (newData) => { setExpenses(prev => { const v = typeof newData === 'function' ? newData(prev) : newData; saveDataToDB('expenses', v); tursoSync('expenses', v); return v; }); }; const updateSalesHistory = (newData) => { setSalesHistory(prev => { const v = typeof newData === 'function' ? newData(prev) : newData; saveDataToDB('salesHistory', v); tursoSync('salesHistory', v); const snaps = computeMonthlyAggregates(v); if (snaps.length > 0) { saveMonthlySnapshots(snaps).then(() => setMonthlySnapshots(snaps)); } return v; }); }; const updateStockHistory = (newData) => { setStockHistory(prev => { const v = typeof newData === 'function' ? newData(prev) : newData; saveDataToDB('stockHistory', v); tursoSync('stockHistory', v); return v; }); };
 
       useEffect(() => { const loadAllData = async () => { const loadedProducts = (await loadDataFromDB('products') || []).filter(Boolean); const loadedCustomers = (await loadDataFromDB('customers') || []).filter(Boolean); const loadedDebts = (await loadDataFromDB('debts') || []).filter(Boolean); const loadedPaidDebts = (await loadDataFromDB('paidDebts') || []).filter(Boolean); const loadedExpenses = (await loadDataFromDB('expenses') || []).filter(Boolean); const loadedSales = (await loadDataFromDB('salesHistory') || []).filter(Boolean); const loadedStock = (await loadDataFromDB('stockHistory') || []).filter(Boolean); const loadedSnaps = (await loadMonthlySnapshots() || []).filter(Boolean); setProducts(loadedProducts); setCustomers(loadedCustomers); setDebts(loadedDebts); setPaidDebts(loadedPaidDebts); setExpenses(loadedExpenses); setSalesHistory(loadedSales); setStockHistory(loadedStock); setMonthlySnapshots(loadedSnaps); }; loadAllData(); }, []);
 
       // ── Real-time sync: poll Turso every 5s for changes made on other devices ──
       const lastSyncTsRef = useRef(0);
       useEffect(() => {
+        const raw = localStorage.getItem('db_session');
+        if (!raw) return; // No DB connected — don't poll
+        let url, token;
+        try { ({ url, token } = JSON.parse(raw)); } catch { return; }
+        if (!url || !token) return;
+        const httpUrl = url.trim().replace(/^libsql:\/\//, 'https://');
 
         const applyLiveData = async (data) => {
           // Update React state AND local IndexedDB with the new data from Turso
@@ -4387,7 +4413,7 @@ id,name,qty,barcode,date,cashierName
             const pollRes = await fetch('/api/poll', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({}),
+              body: JSON.stringify({ url: httpUrl, token }),
             });
             if (!pollRes.ok) return;
             const { last_modified } = await pollRes.json();
@@ -4789,8 +4815,8 @@ id,name,qty,barcode,date,cashierName
       const [view, setViewRaw] = useState(() => {
         try {
           const s = JSON.parse(localStorage.getItem('sb_session') || 'null');
-          return (s && s.view) ? s.view : 'auth';
-        } catch { return 'auth'; }
+          return (s && s.view) ? s.view : 'landing';
+        } catch { return 'landing'; }
       });
       const [currentUser, setCurrentUserRaw] = useState(() => {
         try {
@@ -5100,6 +5126,7 @@ id,name,qty,barcode,date,cashierName
 
       return (
         <>
+          {isLocked && <LockScreen correctPin={superAdminSettings.lockPin} onUnlock={() => setIsLocked(false)} isPeriodExpired={isPeriodExpired} recoveryPin={superAdminSettings.recoveryPin} />}
           {view === 'superAdmin' && (
             <SuperAdminPanel
               settings={superAdminSettings}
@@ -5109,7 +5136,71 @@ id,name,qty,barcode,date,cashierName
               clearDataFromDB={clearDataFromDB}
             />
           )}
-          {view === 'auth' && <AuthScreen onLogin={(user) => { setCurrentUser(user); setView('dash'); }} />}
+          {view === 'landing' && (<div className="min-h-screen bg-white flex flex-col"><nav className="px-6 py-4 border-b flex justify-between items-center"><div className="flex items-center gap-2 font-bold text-xl text-slate-800"><img src={window.LOGO_DATA} alt="Softly Built" className="w-10 h-10 rounded-lg object-contain shadow-lg shadow-emerald-200" /> Softly Built</div><button onClick={() => setView('pin')} className="text-emerald-600 font-semibold hover:text-emerald-700">Login</button></nav><div className="flex-1 flex flex-col items-center justify-center text-center px-6 py-20 bg-gradient-to-b from-slate-50 to-white"><h1 className="text-5xl md:text-6xl font-extrabold text-slate-900 mb-6 tracking-tight">Manage your shop with <br className="hidden md:block" /><span className="text-emerald-600">precision and ease.</span></h1><p className="text-lg text-slate-500 max-w-2xl mb-10 leading-relaxed">Softly Built is the professional point-of-sale system designed for modern retailers. Track inventory, manage debts, and visualize profits, now with full offline support.</p><div className="flex flex-col md:flex-row gap-4 justify-center"><button onClick={() => setView('pin')} className="group flex items-center justify-center gap-2 bg-emerald-600 text-white px-8 py-4 rounded-xl text-lg font-bold shadow-xl shadow-emerald-200 hover:bg-emerald-700 hover:shadow-2xl hover:-translate-y-1 transition-all">Launch System <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" /></button><button onClick={() => setView('qr_scan')} className="group flex items-center justify-center gap-2 bg-white text-emerald-600 border border-emerald-200 px-8 py-4 rounded-xl text-lg font-bold shadow-lg hover:bg-emerald-50 hover:shadow-xl hover:-translate-y-1 transition-all">Scan QR Login <QrCode className="w-5 h-5 group-hover:scale-110 transition-transform" /></button></div><button onClick={() => setView('cloud_recovery')} className="mt-8 text-emerald-600 font-bold hover:underline flex items-center justify-center gap-2 mx-auto"><Key className="w-4 h-4" /> Recover Existing Store</button></div><footer className="py-8 text-center text-slate-400 text-sm border-t"><p>&copy; {new Date().getFullYear()} Softly Built.</p></footer></div>)}
+          {view === 'pin' && (<div className="min-h-screen bg-slate-50 flex items-center justify-center p-4"><div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm text-center"><div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4"><Lock className="w-8 h-8 text-emerald-600" /></div><h2 className="text-xl font-bold mb-2 text-slate-800">Enter Access {loginMode === 'pin' ? 'PIN' : 'Password'}</h2><p className="text-sm text-slate-500 mb-6">Login as Owner or Cashier</p>
+{loginMode === 'pin' ? (
+  <>
+  <div className="flex justify-center gap-3 mb-8">{[0, 1, 2, 3].map(i => <div key={i} className={`w-3 h-3 rounded-full transition-all ${pin.length > i ? 'bg-emerald-600 scale-125' : 'bg-slate-200'}`}></div>)}</div><div className="grid grid-cols-3 gap-4">{[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => <button key={n} onClick={() => checkPin(pin + n)} className="p-4 bg-slate-50 rounded-xl font-bold text-xl text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 hover:shadow-md transition-all border border-slate-100">{n}</button>)}<div /><button onClick={() => checkPin(pin + '0')} className="p-4 bg-slate-50 rounded-xl font-bold text-xl text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 hover:shadow-md transition-all border border-slate-100">0</button><button onClick={() => setPin(pin.slice(0, -1))} className="p-4 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"><Delete className="w-6 h-6" /></button></div>
+  </>
+) : (
+  <form onSubmit={(e) => { e.preventDefault(); checkPin(pin, true); }} className="mb-4">
+    <input id="field-96" name="field-96" type={showLoginPwd ? "text" : "password"} value={pin} onChange={e => setPin(e.target.value)} className="w-full p-4 border border-slate-200 rounded-xl text-center text-xl bg-slate-50 focus:bg-white focus:ring-2 ring-emerald-500 outline-none" placeholder="Enter password" autoFocus />
+    <button type="button" onClick={() => setShowLoginPwd(!showLoginPwd)} className="text-xs text-slate-400 hover:text-slate-600 mt-2 block w-full text-right">{showLoginPwd ? 'Hide' : 'Show'} Password</button>
+    <button type="submit" className="w-full mt-4 bg-emerald-600 text-white font-bold py-3 rounded-xl hover:bg-emerald-700 transition-colors">Login</button>
+  </form>
+)}
+<button onClick={() => { setPin(''); setLoginMode(loginMode === 'pin' ? 'password' : 'pin'); }} className="mt-6 text-emerald-600 hover:text-emerald-700 font-medium text-sm block mx-auto underline decoration-dotted">Switch to {loginMode === 'pin' ? 'Password' : 'PIN'}</button>
+<button onClick={logout} className="mt-6 text-sm text-slate-400 hover:text-red-500 font-medium block mx-auto">Back to Home</button>{loginMode === 'pin' && <button onClick={() => { setPin(''); setView('recover'); }} className="mt-4 text-xs text-slate-500 hover:text-slate-700 block mx-auto">Forgot PIN?</button>}</div></div>)}
+          {view === 'recover' && (<div className="min-h-screen bg-slate-50 flex items-center justify-center p-4"><div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm text-center"><div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4"><Key className="w-8 h-8 text-amber-600" /></div><h2 className="text-xl font-bold mb-2 text-slate-800">Recover Access</h2><p className="text-sm text-slate-500 mb-6">Enter the master recovery PIN.</p><div className="flex justify-center gap-3 mb-8">{[0, 1, 2, 3, 4, 5].map(i => <div key={i} className={`w-3 h-3 rounded-full transition-all ${pin.length > i ? 'bg-amber-600 scale-125' : 'bg-slate-200'}`}></div>)}</div><div className="grid grid-cols-3 gap-4">{[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => <button key={n} onClick={() => checkRecoveryPin(pin + n)} className="p-4 bg-slate-50 rounded-xl font-bold text-xl text-slate-700 hover:bg-amber-50 hover:text-amber-700 hover:shadow-md transition-all border border-slate-100">{n}</button>)}<div /><button onClick={() => checkRecoveryPin(pin + '0')} className="p-4 bg-slate-50 rounded-xl font-bold text-xl text-slate-700 hover:bg-amber-50 hover:text-amber-700 hover:shadow-md transition-all border border-slate-100">0</button><button onClick={() => setPin(pin.slice(0, -1))} className="p-4 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"><Delete className="w-6 h-6" /></button></div><button onClick={() => { setPin(''); setView('pin'); }} className="mt-8 text-sm text-slate-400 hover:text-slate-700 font-medium">Back to Login</button></div></div>)}
+          
+          {view === 'cloud_recovery' && (
+            <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+              <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm text-center">
+                <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4"><Lock className="w-8 h-8 text-indigo-600" /></div>
+                <h2 className="text-xl font-bold mb-2 text-slate-800">Cloud Recovery</h2>
+                <p className="text-sm text-slate-500 mb-6">Enter your Store Handle and Master Password to reconnect.</p>
+                <form onSubmit={async (e) => { 
+                  e.preventDefault(); 
+                  const handle = e.target.handle.value.trim().replace(/^@/, ''); 
+                  const pwd = e.target.pwd.value; 
+                  if (!handle || !pwd) return toast.error('Both fields required');
+                  const toastId = toast.loading('Recovering store...');
+                  try {
+                    const creds = await downloadFromCloudRegistry(handle, pwd);
+                    localStorage.setItem('db_session', JSON.stringify(creds));
+                    const session = JSON.parse(localStorage.getItem('sb_session') || '{}');
+                    localStorage.setItem('sb_session', JSON.stringify({ ...session, view: 'pin' }));
+                    toast.success('Recovery successful! Connecting...', { id: toastId });
+                    setTimeout(() => window.location.reload(), 1500);
+                  } catch (err) {
+                    toast.error(err.message || 'Recovery failed', { id: toastId });
+                  }
+                }} className="mb-4 text-left">
+                  <label className="text-xs font-semibold text-slate-500 block mb-1">Store Handle</label>
+                  <input name="handle" className="w-full p-3 border border-slate-200 rounded-xl mb-4 bg-slate-50 focus:bg-white focus:ring-2 ring-indigo-500 outline-none" placeholder="@JohnsMart" required autoFocus />
+                  <label className="text-xs font-semibold text-slate-500 block mb-1">Master Password</label>
+                  <input name="pwd" type="password" className="w-full p-3 border border-slate-200 rounded-xl mb-4 bg-slate-50 focus:bg-white focus:ring-2 ring-indigo-500 outline-none" placeholder="••••••••" required />
+                  <button type="submit" className="w-full mt-2 bg-indigo-600 text-white font-bold py-3 rounded-xl hover:bg-indigo-700 transition-colors">Recover Store</button>
+                </form>
+                <button onClick={() => setView('landing')} className="mt-4 text-sm text-slate-400 hover:text-slate-600 font-medium block mx-auto">Cancel</button>
+              </div>
+            </div>
+          )}
+
+          {view === 'qr_scan' && <QRScanView onScanSuccess={(text) => { setScannedQrText(text); setPin(''); setView('qr_pin'); }} onClose={() => setView('landing')} />}
+
+          {view === 'qr_pin' && (
+            <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+              <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm text-center">
+                <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4"><Lock className="w-8 h-8 text-emerald-600" /></div>
+                <h2 className="text-xl font-bold mb-2 text-slate-800">Decrypt Connection</h2>
+                <p className="text-sm text-slate-500 mb-6">Enter your 4-digit PIN to securely connect to the store.</p>
+                <div className="flex justify-center gap-3 mb-8">{[0, 1, 2, 3].map(i => <div key={i} className={`w-3 h-3 rounded-full transition-all ${pin.length > i ? 'bg-emerald-600 scale-125' : 'bg-slate-200'}`}></div>)}</div>
+                <div className="grid grid-cols-3 gap-4">{[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => <button key={n} onClick={() => checkQrPin(pin + n)} className="p-4 bg-slate-50 rounded-xl font-bold text-xl text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 hover:shadow-md transition-all border border-slate-100">{n}</button>)}<div /><button onClick={() => checkQrPin(pin + '0')} className="p-4 bg-slate-50 rounded-xl font-bold text-xl text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 hover:shadow-md transition-all border border-slate-100">0</button><button onClick={() => setPin(pin.slice(0, -1))} className="p-4 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"><Delete className="w-6 h-6" /></button></div>
+                <button onClick={() => { setPin(''); setView('landing'); }} className="mt-8 text-sm text-slate-400 hover:text-red-500 font-medium">Cancel</button>
+              </div>
+            </div>
+          )}
 
           {view === 'dash' && <Dashboard currentUser={currentUser} onLogout={logout} settings={settings} onSettingsChange={updateSettings} initialTab={initialTab} superAdminSettings={superAdminSettings} setSettingsRaw={setSettings} setSuperAdminSettingsRaw={setSuperAdminSettings} />}
         </>
